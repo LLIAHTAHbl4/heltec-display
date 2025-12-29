@@ -1,12 +1,28 @@
-// Heltec V3.1 с MPU6050 и OLED дисплеем
+// Heltec V3.1 с MPU6050 - ЛЕГКОДОСТУПНЫЕ пины
 #include <Wire.h>
 #include "SH1106Wire.h"
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 
-// Пины Heltec V3.1
-#define I2C_SDA     17    // SDA для дисплея и MPU6050
-#define I2C_SCL     18    // SCL для дисплея и MPU6050
+// === ВЫБЕРИ ЛЮБОЙ ВАРИАНТ ПИНОВ ===
+
+// Вариант A: GPIO8 и GPIO9 (стандартные альтернативные)
+// #define I2C_SDA     8
+// #define I2C_SCL     9
+
+// Вариант B: GPIO33 и GPIO34 (свободные пины на краю платы)
+#define I2C_SDA     33
+#define I2C_SCL     34
+
+// Вариант C: GPIO1 и GPIO2 (TX/RX, осторожно - могут мешать Serial)
+// #define I2C_SDA     1
+// #define I2C_SCL     2
+
+// Вариант D: GPIO4 и GPIO5 (часто свободные)
+// #define I2C_SDA     4
+// #define I2C_SCL     5
+
+// Остальные пины (не меняются)
 #define OLED_RST    21    // Reset дисплея
 #define OLED_VEXT   10    // Питание дисплея (LOW = ON)
 #define OLED_ADDR   0x3C  // Адрес дисплея
@@ -15,7 +31,7 @@
 SH1106Wire display(OLED_ADDR, I2C_SDA, I2C_SCL);
 Adafruit_MPU6050 mpu;
 
-// Переменные для фильтрации (уменьшение дребезга)
+// Переменные
 float accelX, accelY, accelZ;
 float gyroX, gyroY, gyroZ;
 float temp;
@@ -26,7 +42,9 @@ void setup() {
   
   Serial.println();
   Serial.println("==========================================");
-  Serial.println("Heltec V3.1 with MPU6050 Accelerometer");
+  Serial.println("Heltec V3.1 - Легкодоступные пины I2C");
+  Serial.print("SDA: GPIO"); Serial.println(I2C_SDA);
+  Serial.print("SCL: GPIO"); Serial.println(I2C_SCL);
   Serial.println("==========================================");
   
   // 1. Включаем питание дисплея
@@ -43,48 +61,57 @@ void setup() {
   digitalWrite(OLED_RST, HIGH);
   delay(50);
   
-  // 3. Инициализация I2C
-  Serial.println("[3] Starting I2C bus...");
+  // 3. Инициализация I2C на новых пинах
+  Serial.println("[3] Starting I2C on new pins...");
   Wire.begin(I2C_SDA, I2C_SCL);
   
   // 4. Инициализация дисплея
   Serial.println("[4] Initializing OLED display...");
-  display.init();
+  if (!display.init()) {
+    Serial.println("OLED init failed! Check I2C pins.");
+    while(1);
+  }
   display.flipScreenVertically();
-  display.setFont(ArialMT_Plain_10); // Меньший шрифт для больше данных
+  display.setFont(ArialMT_Plain_10);
   display.clear();
   
-  // Вывод стартового сообщения
+  // Стартовый экран
   display.drawString(0, 0, "Heltec V3.1");
-  display.drawString(0, 12, "MPU6050 Test");
-  display.drawString(0, 24, "Initializing...");
+  display.drawString(0, 12, "SDA:" + String(I2C_SDA));
+  display.drawString(0, 24, "SCL:" + String(I2C_SCL));
+  display.drawString(0, 36, "Init MPU6050...");
   display.display();
   
   // 5. Инициализация MPU6050
   Serial.println("[5] Initializing MPU6050...");
-  if (!mpu.begin(0x68, &Wire, 0)) { // Адрес 0x68
-    Serial.println("Failed to find MPU6050 chip!");
+  delay(1000); // Даем время дисплею
+  
+  if (!mpu.begin(0x68, &Wire, 0)) {
+    Serial.println("MPU6050 not found!");
     display.clear();
     display.drawString(0, 0, "MPU6050 ERROR!");
-    display.drawString(0, 20, "Check connection");
+    display.drawString(0, 12, "Check connection");
+    display.drawString(0, 24, "SDA:" + String(I2C_SDA));
+    display.drawString(0, 36, "SCL:" + String(I2C_SCL));
     display.display();
     while (1) {
-      delay(10);
+      delay(1000);
     }
   }
   
   // Настройка MPU6050
-  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);     // ±8G
-  mpu.setGyroRange(MPU6050_RANGE_500_DEG);          // ±500°/с
-  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);       // Фильтр 21Hz
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
   
-  Serial.println("MPU6050 initialized successfully!");
+  Serial.println("MPU6050 OK!");
   
-  // Стартовый экран
+  // Успешная инициализация
   display.clear();
-  display.drawString(0, 0, "Heltec V3.1 Ready");
+  display.drawString(0, 0, "SYSTEM READY");
   display.drawString(0, 12, "MPU6050: OK");
-  display.drawString(0, 24, "Reading data...");
+  display.drawString(0, 24, "Pins SDA:" + String(I2C_SDA));
+  display.drawString(0, 36, "Pins SCL:" + String(I2C_SCL));
   display.display();
   
   delay(2000);
@@ -95,11 +122,15 @@ void setup() {
 }
 
 void loop() {
-  // Чтение данных с MPU6050
+  // Чтение данных
   sensors_event_t a, g, temp_event;
-  mpu.getEvent(&a, &g, &temp_event);
+  if (!mpu.getEvent(&a, &g, &temp_event)) {
+    Serial.println("MPU6050 read error!");
+    delay(1000);
+    return;
+  }
   
-  // Фильтрация (простой усредняющий фильтр)
+  // Фильтрация
   accelX = (accelX * 0.7) + (a.acceleration.x * 0.3);
   accelY = (accelY * 0.7) + (a.acceleration.y * 0.3);
   accelZ = (accelZ * 0.7) + (a.acceleration.z * 0.3);
@@ -110,36 +141,32 @@ void loop() {
   
   temp = temp_event.temperature;
   
-  // Вывод в Serial монитор
+  // Serial вывод
   Serial.printf("%.2f\t%.2f\t%.2f\t", accelX, accelY, accelZ);
   Serial.printf("%.2f\t%.2f\t%.2f\t", gyroX, gyroY, gyroZ);
   Serial.printf("%.1fC\n", temp);
   
-  // Обновление дисплея
+  // OLED вывод (оптимизированный)
   display.clear();
   
-  // Акселерометр (верхняя часть)
-  display.drawString(0, 0, "Accelerometer:");
-  display.drawString(0, 12, "X:" + String(accelX, 1) + " m/s²");
-  display.drawString(0, 24, "Y:" + String(accelY, 1) + " m/s²");
-  display.drawString(0, 36, "Z:" + String(accelZ, 1) + " m/s²");
+  // Акселерометр
+  display.drawString(0, 0, "ACCEL:");
+  display.drawString(0, 12, "X:" + String(accelX, 1));
+  display.drawString(40, 12, "Y:" + String(accelY, 1));
+  display.drawString(80, 12, "Z:" + String(accelZ, 1));
   
-  // Гироскоп и температура (нижняя часть)
-  display.drawString(64, 0, "Gyro:");
-  display.drawString(64, 12, "X:" + String(gyroX, 1) + "°/s");
-  display.drawString(64, 24, "Y:" + String(gyroY, 1) + "°/s");
-  display.drawString(64, 36, "Z:" + String(gyroZ, 1) + "°/s");
+  // Гироскоп
+  display.drawString(0, 24, "GYRO:");
+  display.drawString(0, 36, "X:" + String(gyroX, 1));
+  display.drawString(40, 36, "Y:" + String(gyroY, 1));
+  display.drawString(80, 36, "Z:" + String(gyroZ, 1));
   
-  // Температура в самом низу
-  display.drawString(0, 48, "Temp: " + String(temp, 1) + " C");
-  
-  // Индикация активности
-  static bool blink = false;
-  blink = !blink;
-  display.drawString(110, 48, blink ? "*" : " ");
+  // Температура и пины
+  display.drawString(0, 48, "T:" + String(temp, 1) + "C");
+  display.drawString(40, 48, "SDA:" + String(I2C_SDA));
+  display.drawString(80, 48, "SCL:" + String(I2C_SCL));
   
   display.display();
   
-  // Задержка для стабильного отображения
-  delay(100);
+  delay(150); // Частота обновления
 }
