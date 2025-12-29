@@ -1,0 +1,23 @@
+name: Build Heltec
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    - uses: arduino/setup-arduino-cli@v1
+    
+    - name: Add Heltec boards
+      run: |
+        arduino-cli config add board_manager.additional_urls https://heltec.org/package_heltec_esp32_index.json
+        arduino-cli core update-index
+        arduino-cli core install heltec:esp32
+    
+    - name: Install display library
+      run: arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"
+    
+    - name: Compile
+      run: arduino-cli compile --fqbn heltec:esp32:wifi_kit_32 .
