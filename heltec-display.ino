@@ -1,79 +1,81 @@
 #include <Wire.h>
-#include <SPI.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SH110X.h>
-
-// Пины для I2C
-#define I2C_SDA 15
-#define I2C_SCL 4
-#define I2C_RST 16
-
-// Используем правильный класс из библиотеки SH110X
-Adafruit_SH1106G display(128, 64, &Wire, I2C_RST);
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("Testing SH1106 display...");
+  Serial.println("=== ULTIMATE DISPLAY TEST ===");
   
-  // Инициализация I2C
-  Wire.begin(I2C_SDA, I2C_SCL);
+  // Все возможные пины питания дисплея
+  int powerPins[] = {2, 5, 12, 13, 14, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33};
   
-  // Сброс дисплея
-  pinMode(I2C_RST, OUTPUT);
-  digitalWrite(I2C_RST, LOW);
-  delay(50);
-  digitalWrite(I2C_RST, HIGH);
-  delay(50);
+  // Все возможные пары I2C пинов
+  int i2cPairs[][2] = {
+    {15, 4}, {4, 15}, 
+    {17, 18}, {18, 17},
+    {21, 22}, {22, 21},
+    {8, 9}, {9, 8},
+    {1, 2}, {2, 1},
+    {6, 7}, {7, 6},
+    {10, 11}, {11, 10},
+    {33, 32}, {32, 33}
+  };
   
-  Serial.println("Initializing display...");
-  
-  // Пробуем инициализировать дисплей
-  // Метод 1: без параметров
-  if (!display.begin()) {
-    Serial.println("Display init failed (method 1)");
+  // Перебираем все комбинации
+  for (int p = 0; p < 17; p++) {
+    int powerPin = powerPins[p];
     
-    // Метод 2: с адресом
-    if (!display.begin(0x3C, true)) {
-      Serial.println("Display init failed (0x3C)");
+    for (int i = 0; i < 14; i++) {
+      int sda = i2cPairs[i][0];
+      int scl = i2cPairs[i][1];
       
-      // Метод 3: с другим адресом
-      if (!display.begin(0x3D, true)) {
-        Serial.println("Display init completely failed");
-        Serial.println("Possible issues:");
-        Serial.println("1. Wrong pins");
-        Serial.println("2. Display not powered");
-        Serial.println("3. Display is SPI, not I2C");
-        return;
-      } else {
-        Serial.println("Display found at 0x3D!");
+      Serial.print("\nTest: Power=");
+      Serial.print(powerPin);
+      Serial.print(" SDA=");
+      Serial.print(sda);
+      Serial.print(" SCL=");
+      Serial.println(scl);
+      
+      // Пробуем включить питание
+      pinMode(powerPin, OUTPUT);
+      digitalWrite(powerPin, HIGH);
+      delay(100);
+      
+      // Пробуем I2C
+      Wire.begin(sda, scl);
+      delay(50);
+      
+      // Проверяем адреса
+      Wire.beginTransmission(0x3C);
+      bool found3C = (Wire.endTransmission() == 0);
+      
+      Wire.beginTransmission(0x3D);
+      bool found3D = (Wire.endTransmission() == 0);
+      
+      if (found3C || found3D) {
+        Serial.println("*** DISPLAY FOUND! ***");
+        if (found3C) Serial.println("Address: 0x3C");
+        if (found3D) Serial.println("Address: 0x3D");
+        Serial.print("Use: Power=");
+        Serial.print(powerPin);
+        Serial.print(" SDA=");
+        Serial.print(sda);
+        Serial.print(" SCL=");
+        Serial.println(scl);
+        Serial.println("=== STOP TEST ===");
+        while(1); // Останавливаем
       }
-    } else {
-      Serial.println("Display found at 0x3C!");
+      
+      // Выключаем питание
+      digitalWrite(powerPin, LOW);
+      delay(50);
     }
-  } else {
-    Serial.println("Display initialized!");
   }
   
-  // Очистка и вывод текста
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setTextColor(SH110X_WHITE);
-  display.setCursor(0, 0);
-  display.println("HELLO!");
-  display.println("Heltec S3");
-  display.display();
-  
-  Serial.println("Text should be on display");
+  Serial.println("\n=== NO DISPLAY FOUND ===");
+  Serial.println("Check physically:");
+  Serial.println("1. Is display connected?");
+  Serial.println("2. Look for jumpers on back");
+  Serial.println("3. Maybe display is broken");
 }
 
-void loop() {
-  delay(5000);
-  
-  // Мигание для проверки
-  display.invertDisplay(true);
-  delay(500);
-  display.invertDisplay(false);
-  
-  Serial.println("Display inverted (if working)");
-}
+void loop() {}
