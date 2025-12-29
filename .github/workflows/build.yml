@@ -12,9 +12,8 @@ jobs:
     - name: Setup Arduino CLI
       uses: arduino/setup-arduino-cli@v1
     
-    - name: Install ESP32 core (без Heltec)
+    - name: Install ESP32 core
       run: |
-        # Используем стандартный ESP32 вместо Heltec
         arduino-cli config init || true
         arduino-cli core update-index
         arduino-cli core install esp32:esp32
@@ -22,11 +21,17 @@ jobs:
     - name: Install display library
       run: arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"
     
-    - name: Compile for generic ESP32
-      run: arduino-cli compile --fqbn esp32:esp32:esp32 .
+    - name: Compile
+      run: |
+        # Компилируем и указываем папку для выходных файлов
+        mkdir -p firmware
+        arduino-cli compile --fqbn esp32:esp32:esp32 --output-dir firmware .
+    
+    - name: List files (для проверки)
+      run: ls -la firmware/ || ls -la
     
     - name: Upload firmware
       uses: actions/upload-artifact@v4
       with:
         name: firmware
-        path: ./*.bin
+        path: firmware/*.bin
