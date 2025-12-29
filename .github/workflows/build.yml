@@ -1,9 +1,6 @@
 name: Build Heltec V3.1 Project
 on: [push, workflow_dispatch, pull_request]
 
-env:
-  SKETCH_NAME: "heltec_sensors.ino"
-  
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,17 +25,20 @@ jobs:
         arduino-cli lib install "Adafruit AHTX0"
         arduino-cli lib install "Adafruit SHT31 Library"
         
-    - name: Verify sketch exists
+    - name: Find and compile sketch
       run: |
-        if [ ! -f "${{ env.SKETCH_NAME }}" ]; then
-          echo "❌ Файл скетча ${{ env.SKETCH_NAME }} не найден!"
-          echo "Создайте файл ${{ env.SKETCH_NAME }} с вашим кодом"
+        # Ищем файл .ino в репозитории
+        SKETCH_FILE=$(find . -name "*.ino" -type f | head -1)
+        
+        if [ -z "$SKETCH_FILE" ]; then
+          echo "❌ Ошибка: не найден ни один .ino файл в репозитории"
+          echo "Создайте файл с расширением .ino в корне репозитория"
           exit 1
         fi
-        echo "✅ Файл скетча найден"
         
-    - name: Compile for ESP32-S3
-      run: |
+        echo "✅ Найден скетч: $SKETCH_FILE"
+        
+        # Компилируем
         arduino-cli compile \
           --fqbn esp32:esp32:esp32s3 \
           --build-property "build.partitions=default" \
@@ -46,13 +46,11 @@ jobs:
           --build-property "upload.speed=921600" \
           --build-property "compiler.cpp.extra_flags=-Wno-error=deprecated-declarations" \
           --warnings all \
-          ${{ env.SKETCH_NAME }}
+          "$SKETCH_FILE"
           
     - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
       with:
         name: firmware
-        path: |
-          build/esp32.esp32.esp32s3/*.bin
-          build/esp32.esp32.esp32s3/*.elf
+        path: build/esp32.esp32.esp32s3/*.bin
         retention-days: 30
