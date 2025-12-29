@@ -3,28 +3,20 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SH110X.h>
 
-// Для I2C дисплея (пробуем еще раз)
+// Пины для I2C
 #define I2C_SDA 15
 #define I2C_SCL 4
 #define I2C_RST 16
 
-// Для SPI дисплея (если вдруг SPI)
-#define SPI_MOSI 13
-#define SPI_CLK  14
-#define SPI_DC   27
-#define SPI_CS   12
-#define SPI_RST  33
-
-// Пробуем I2C сначала
-Adafruit_SH1106 display(128, 64, &Wire, I2C_RST);
+// Используем правильный класс из библиотеки SH110X
+Adafruit_SH1106G display(128, 64, &Wire, I2C_RST);
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("Testing display...");
+  Serial.println("Testing SH1106 display...");
   
-  // Пробуем I2C
-  Serial.println("Trying I2C...");
+  // Инициализация I2C
   Wire.begin(I2C_SDA, I2C_SCL);
   
   // Сброс дисплея
@@ -34,32 +26,54 @@ void setup() {
   digitalWrite(I2C_RST, HIGH);
   delay(50);
   
-  // Инициализация I2C дисплея
-  if (display.begin(0x3C, true)) {
-    Serial.println("I2C display OK!");
-    showText("I2C WORKS!");
-  } else {
-    Serial.println("I2C failed, trying 0x3D...");
-    if (display.begin(0x3D, true)) {
-      Serial.println("I2C 0x3D OK!");
-      showText("I2C 0x3D");
+  Serial.println("Initializing display...");
+  
+  // Пробуем инициализировать дисплей
+  // Метод 1: без параметров
+  if (!display.begin()) {
+    Serial.println("Display init failed (method 1)");
+    
+    // Метод 2: с адресом
+    if (!display.begin(0x3C, true)) {
+      Serial.println("Display init failed (0x3C)");
+      
+      // Метод 3: с другим адресом
+      if (!display.begin(0x3D, true)) {
+        Serial.println("Display init completely failed");
+        Serial.println("Possible issues:");
+        Serial.println("1. Wrong pins");
+        Serial.println("2. Display not powered");
+        Serial.println("3. Display is SPI, not I2C");
+        return;
+      } else {
+        Serial.println("Display found at 0x3D!");
+      }
     } else {
-      Serial.println("I2C completely failed");
+      Serial.println("Display found at 0x3C!");
     }
+  } else {
+    Serial.println("Display initialized!");
   }
-}
-
-void showText(String msg) {
+  
+  // Очистка и вывод текста
   display.clearDisplay();
   display.setTextSize(2);
   display.setTextColor(SH110X_WHITE);
   display.setCursor(0, 0);
-  display.println(msg);
   display.println("HELLO!");
+  display.println("Heltec S3");
   display.display();
+  
+  Serial.println("Text should be on display");
 }
 
 void loop() {
-  delay(1000);
-  Serial.println("Running...");
+  delay(5000);
+  
+  // Мигание для проверки
+  display.invertDisplay(true);
+  delay(500);
+  display.invertDisplay(false);
+  
+  Serial.println("Display inverted (if working)");
 }
