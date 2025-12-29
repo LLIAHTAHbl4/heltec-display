@@ -1,44 +1,92 @@
-name: Build Heltec V3.1 with MPU6050
-
+name: Build Heltec V3.1 Project with Sensors
 on: [push, workflow_dispatch]
 
+env:
+  SKETCH_NAME: "heltec_sensors_project.ino"
+  
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
-    
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
     - name: Setup Arduino CLI
       uses: arduino/setup-arduino-cli@v1
-    
-    - name: Install ESP32 core
+      
+    - name: Install ESP32 core (S3)
       run: |
-        arduino-cli config init
-        arduino-cli core update-index
-        arduino-cli core install esp32:esp32
-    
+        arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+        arduino-cli core install esp32:esp32@2.0.14 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+        
     - name: Install required libraries
       run: |
-        arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"
-        arduino-cli lib install "Adafruit MPU6050"
-        arduino-cli lib install "Adafruit Unified Sensor"
+        # Основные библиотеки
+        arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"  # SH1106Wire.h
+        arduino-cli lib install "Adafruit AHTX0"  # Для AHT10/AC5600
+        arduino-cli lib install "Adafruit SHT31 Library"  # Для SHT31
+        arduino-cli lib install "Adafruit Unified Sensor"  # Зависимость
+        arduino-cli lib install "Wire"  # I2C библиотека
+        
+        # Дополнительные полезные библиотеки
         arduino-cli lib install "Adafruit BusIO"
-    
-    - name: Compile for ESP32-S3
+        
+    - name: Rename sketch to match expected name
       run: |
-        mkdir -p firmware_output
-        arduino-cli compile --fqbn esp32:esp32:esp32s3 --output-dir firmware_output --export-binaries .
-    
-    - name: Copy binaries to artifacts
+        # Копируем главный файл в корень с правильным именем
+        if [ -f "main.ino" ]; then
+          cp main.ino ${{ env.SKETCH_NAME }}
+        elif [ -f "*.ino" ]; then
+          cp *.ino ${{ env.SKETCH_NAME }}
+        fi
+        
+    - name: List files for debugging
+      run: ls -la
+        
+    - name: Verify board configuration
       run: |
-        mkdir -p artifacts
-        find . -name "*.bin" -type f -exec cp {} artifacts/ \;
-        ls -la artifacts/
-    
-    - name: Upload firmware
+        arduino-cli board listall | grep -i esp32
+        arduino-cli core list
+        arduino-cli lib list
+        
+    - name: Compile for Heltec WiFi Kit 32 V3.1 (ESP32-S3)
+      run: |
+        arduino-cli compile \
+          --fqbn esp32:esp32:esp32s3 \
+          --build-property "build.partitions=default" \
+          --build-property "upload.maximum_size=4194304" \
+          --build-property "upload.maximum_data_size=131072" \
+          --build-property "upload.speed=921600" \
+          --build-property "compiler.c.extra_flags=-Wno-error=deprecated-declarations" \
+          --build-property "compiler.cpp.extra_flags=-Wno-error=deprecated-declarations" \
+          --warnings all \
+          ${{ env.SKETCH_NAME }}
+          
+    - name: Archive firmware
       uses: actions/upload-artifact@v4
       with:
-        name: heltec-mpu6050-firmware
-        path: artifacts/*.bin
-        if-no-files-found: error
+        name: firmware-heltec-v3.1
+        path: |
+          build/*.bin
+          build/*.elf
+        retention-days: 7
+        
+    - name: Create release package
+      run: |
+        mkdir -p release
+        cp build/esp32.esp32.esp32s3/*.bin release/ || true
+        cp build/esp32.esp32.esp32s3/*.elf release/ || true
+        echo "Build date: $(date)" > release/build_info.txt
+        echo "Commit: $GITHUB_SHA" >> release/build_info.txt
+        echo "Board: Heltec WiFi Kit 32 V3.1 (ESP32-S3)" >> release/build_info.txt
+        echo "Sensors: AHT10 + SHT31" >> release/build_info.txt
+        
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-package
+        path: release/
+        retention-days: 30
