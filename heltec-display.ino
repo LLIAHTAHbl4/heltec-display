@@ -11,14 +11,14 @@
 // #define RST_PIN 21
 
 // === ВАРИАНТ 2 ===
-#define SDA_PIN 15
-#define SCL_PIN 4
-#define RST_PIN 16
+// #define SDA_PIN 15
+// #define SCL_PIN 4
+// #define RST_PIN 16
 
 // === ВАРИАНТ 3 (стандартные I2C пины) ===
-// #define SDA_PIN 8
-// #define SCL_PIN 9
-// #define RST_PIN -1  // без пина сброса
+ #define SDA_PIN 8
+ #define SCL_PIN 9
+ #define RST_PIN -1  // без пина сброса
 
 SH1106Wire display(0x3C, SDA_PIN, SCL_PIN);
 
