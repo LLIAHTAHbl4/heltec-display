@@ -1,125 +1,60 @@
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include "SH1106Wire.h"  // Библиотека для SH1106!
 
-#define OLED_SDA   17
-#define OLED_SCL   18
-#define OLED_RST   16
-#define VEXT_PIN   21
+// Пины ПО ДОКУМЕНТАЦИИ Heltec:
+#define I2C_SDA     17
+#define I2C_SCL     18  
+#define OLED_RST    21  // По документации!
+#define OLED_VEXT   10  // По документации! Питание дисплея
 
-Adafruit_SSD1306 display(128, 64, &Wire, OLED_RST);
+SH1106Wire display(0x3C, I2C_SDA, I2C_SCL);
 
 void setup() {
   Serial.begin(115200);
-  delay(3000); // Долгая задержка для стабилизации
+  delay(1000);
+  Serial.println("=== HELTEC V3.1 OFFICIAL CODE ===");
   
-  Serial.println("=== ULTIMATE OLED TEST ===");
+  // 1. ВКЛЮЧАЕМ питание дисплея через VEXT (Active LOW!)
+  pinMode(OLED_VEXT, OUTPUT);
+  digitalWrite(OLED_VEXT, LOW);  // LOW = питание ВКЛЮЧЕНО
+  Serial.println("VEXT: ON (LOW)");
+  delay(100);
   
-  // Включение питания
-  pinMode(VEXT_PIN, OUTPUT);
-  digitalWrite(VEXT_PIN, LOW);
-  Serial.println("POWER: ON");
-  delay(500); // Даем время на прогрев
-  
-  // Жесткий сброс
+  // 2. СБРОС дисплея
   pinMode(OLED_RST, OUTPUT);
   digitalWrite(OLED_RST, LOW);
-  delay(200);
+  delay(50);
   digitalWrite(OLED_RST, HIGH);
-  delay(200);
-  Serial.println("RESET: DONE");
+  delay(50);
+  Serial.println("RST: Done");
   
-  // I2C
-  Wire.begin(OLED_SDA, OLED_SCL);
+  // 3. Инициализация I2C
+  Wire.begin(I2C_SDA, I2C_SCL);
   
-  // Инициализация с EXTERNALVCC (работал TEST 2)
-  if (!display.begin(SSD1306_EXTERNALVCC, 0x3C, false)) {
-    Serial.println("SSD1306 failed!");
-    return;
-  }
+  // 4. Инициализация дисплея SH1106
+  Serial.println("Init SH1106...");
+  display.init();
   
-  Serial.println("DISPLAY: INIT OK");
+  // 5. Настройки дисплея
+  display.flipScreenVertically();  // Важно для Heltec!
+  display.setFont(ArialMT_Plain_16);
+  display.clear();
   
-  // === ЭКСТРЕМАЛЬНЫЕ НАСТРОЙКИ ===
-  
-  // 1. Максимальный контраст
-  display.ssd1306_command(SSD1306_SETCONTRAST);
-  display.ssd1306_command(255); // 255 - максимум
-  Serial.println("CONTRAST: MAX (255)");
-  delay(1000);
-  
-  // 2. Включаем дисплей
-  display.ssd1306_command(SSD1306_DISPLAYON);
-  Serial.println("DISPLAY: ON");
-  delay(1000);
-  
-  // 3. ЗАЛИВКА ВСЕГО ЭКРАНА БЕЛЫМ
-  Serial.println("FILL: WHITE SCREEN");
-  display.clearDisplay();
-  display.fillRect(0, 0, 128, 64, SSD1306_WHITE);
+  // 6. Вывод текста
+  display.drawString(0, 0, "HELTEC V3.1");
+  display.drawString(0, 20, "OFFICIAL");
+  display.drawString(0, 40, "WORKING!");
   display.display();
-  delay(3000);
   
-  // 4. ЧЕРНЫЙ экран
-  Serial.println("FILL: BLACK SCREEN");
-  display.clearDisplay();
-  display.display();
-  delay(2000);
-  
-  // 5. ШАХМАТНАЯ ДОСКА (максимально контрастно)
-  Serial.println("PATTERN: CHESS BOARD");
-  display.clearDisplay();
-  for (int y = 0; y < 64; y += 16) {
-    for (int x = 0; x < 128; x += 16) {
-      if ((x + y) % 32 == 0) {
-        display.fillRect(x, y, 16, 16, SSD1306_WHITE);
-      }
-    }
-  }
-  display.display();
-  delay(3000);
-  
-  // 6. ГОРИЗОНТАЛЬНЫЕ полосы
-  Serial.println("PATTERN: HORIZONTAL LINES");
-  display.clearDisplay();
-  for (int y = 0; y < 64; y += 4) {
-    display.drawFastHLine(0, y, 128, SSD1306_WHITE);
-  }
-  display.display();
-  delay(3000);
-  
-  // 7. ВЕРТИКАЛЬНЫЕ полосы
-  Serial.println("PATTERN: VERTICAL LINES");
-  display.clearDisplay();
-  for (int x = 0; x < 128; x += 4) {
-    display.drawFastVLine(x, 0, 64, SSD1306_WHITE);
-  }
-  display.display();
-  delay(3000);
-  
-  Serial.println("=== TEST COMPLETE ===");
-  Serial.println("Look at screen CAREFULLY!");
-  Serial.println("Even faint glow means it works");
+  Serial.println("Display should show text!");
 }
 
 void loop() {
-  // Мигание всей площадью
-  display.clearDisplay();
-  display.fillRect(0, 0, 128, 64, SSD1306_WHITE);
-  display.display();
-  Serial.println("SCREEN: WHITE");
-  delay(1000);
+  // Мигание для проверки
+  display.invertDisplay();
+  delay(500);
+  display.normalDisplay();
+  delay(500);
   
-  display.clearDisplay();
-  display.display();
-  Serial.println("SCREEN: BLACK");
-  delay(1000);
-  
-  // Бегущая точка
-  static int x = 0;
-  display.clearDisplay();
-  display.drawPixel(x, 32, SSD1306_WHITE);
-  display.display();
-  x = (x + 1) % 128;
-  delay(50);
+  Serial.println("Display blinking (if working)");
 }
