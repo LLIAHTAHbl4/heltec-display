@@ -21,14 +21,25 @@ jobs:
     - name: Install SH1106 library
       run: |
         arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"
-        # Эта библиотека поддерживает SH1106
     
     - name: Compile for ESP32-S3
       run: |
-        arduino-cli compile --fqbn esp32:esp32:esp32s3 --export-binaries .
+        # Явно указываем имя скетча
+        mkdir -p build_output
+        arduino-cli compile --fqbn esp32:esp32:esp32s3 --output-dir build_output --export-binaries .
+    
+    - name: Find and copy binaries
+      run: |
+        echo "=== Searching for binaries ==="
+        find . -name "*.bin" -type f
+        echo "=== Copying to artifacts folder ==="
+        mkdir -p artifacts
+        find . -name "*.bin" -type f -exec cp {} artifacts/ \;
+        ls -la artifacts/
     
     - name: Upload firmware
       uses: actions/upload-artifact@v4
       with:
-        name: firmware
-        path: ./*.bin
+        name: heltec-firmware
+        path: artifacts/*.bin
+        if-no-files-found: error
