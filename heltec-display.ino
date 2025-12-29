@@ -1,81 +1,75 @@
 #include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// Пины для Heltec S3 V3.1
+#define OLED_SDA   17
+#define OLED_SCL   18
+#define OLED_RST   16    // Пин сброса дисплея
+#define VEXT_PIN   21    // Пин ВКЛЮЧЕНИЯ питания дисплея (LOW = включен)
+
+Adafruit_SSD1306 display(128, 64, &Wire, OLED_RST);
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("=== ULTIMATE DISPLAY TEST ===");
+  Serial.println("Heltec S3 V3.1 with OLED");
   
-  // Все возможные пины питания дисплея
-  int powerPins[] = {2, 5, 12, 13, 14, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33};
+  // 1. ВКЛЮЧАЕМ питание дисплея (LOW = включено!)
+  pinMode(VEXT_PIN, OUTPUT);
+  digitalWrite(VEXT_PIN, LOW);
+  Serial.println("Display power ON");
+  delay(100);
   
-  // Все возможные пары I2C пинов
-  int i2cPairs[][2] = {
-    {15, 4}, {4, 15}, 
-    {17, 18}, {18, 17},
-    {21, 22}, {22, 21},
-    {8, 9}, {9, 8},
-    {1, 2}, {2, 1},
-    {6, 7}, {7, 6},
-    {10, 11}, {11, 10},
-    {33, 32}, {32, 33}
-  };
+  // 2. Сброс дисплея
+  pinMode(OLED_RST, OUTPUT);
+  digitalWrite(OLED_RST, LOW);
+  delay(50);
+  digitalWrite(OLED_RST, HIGH);
+  delay(50);
+  Serial.println("Display reset done");
   
-  // Перебираем все комбинации
-  for (int p = 0; p < 17; p++) {
-    int powerPin = powerPins[p];
-    
-    for (int i = 0; i < 14; i++) {
-      int sda = i2cPairs[i][0];
-      int scl = i2cPairs[i][1];
-      
-      Serial.print("\nTest: Power=");
-      Serial.print(powerPin);
-      Serial.print(" SDA=");
-      Serial.print(sda);
-      Serial.print(" SCL=");
-      Serial.println(scl);
-      
-      // Пробуем включить питание
-      pinMode(powerPin, OUTPUT);
-      digitalWrite(powerPin, HIGH);
-      delay(100);
-      
-      // Пробуем I2C
-      Wire.begin(sda, scl);
-      delay(50);
-      
-      // Проверяем адреса
-      Wire.beginTransmission(0x3C);
-      bool found3C = (Wire.endTransmission() == 0);
-      
-      Wire.beginTransmission(0x3D);
-      bool found3D = (Wire.endTransmission() == 0);
-      
-      if (found3C || found3D) {
-        Serial.println("*** DISPLAY FOUND! ***");
-        if (found3C) Serial.println("Address: 0x3C");
-        if (found3D) Serial.println("Address: 0x3D");
-        Serial.print("Use: Power=");
-        Serial.print(powerPin);
-        Serial.print(" SDA=");
-        Serial.print(sda);
-        Serial.print(" SCL=");
-        Serial.println(scl);
-        Serial.println("=== STOP TEST ===");
-        while(1); // Останавливаем
-      }
-      
-      // Выключаем питание
-      digitalWrite(powerPin, LOW);
-      delay(50);
+  // 3. Инициализация I2C
+  Wire.begin(OLED_SDA, OLED_SCL);
+  Serial.print("I2C on SDA:");
+  Serial.print(OLED_SDA);
+  Serial.print(" SCL:");
+  Serial.println(OLED_SCL);
+  
+  // 4. Инициализация дисплея
+  Serial.println("Initializing display...");
+  
+  // Пробуем разные адреса и настройки
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C, false)) {
+    Serial.println("0x3C failed, trying 0x3D...");
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3D, false)) {
+      Serial.println("SSD1306 allocation failed");
+      Serial.println("Check VEXT_PIN and connections");
+      return;
     }
   }
   
-  Serial.println("\n=== NO DISPLAY FOUND ===");
-  Serial.println("Check physically:");
-  Serial.println("1. Is display connected?");
-  Serial.println("2. Look for jumpers on back");
-  Serial.println("3. Maybe display is broken");
+  Serial.println("Display initialized!");
+  
+  // 5. Настройка дисплея
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println("HELLO!");
+  display.println("Heltec");
+  display.println("V3.1");
+  display.display();
+  
+  Serial.println("Text displayed!");
 }
 
-void loop() {}
+void loop() {
+  // Мигание для проверки
+  display.invertDisplay(true);
+  delay(300);
+  display.invertDisplay(false);
+  delay(1000);
+  
+  Serial.println("Still running...");
+}
