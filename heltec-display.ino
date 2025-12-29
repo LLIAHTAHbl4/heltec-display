@@ -1,29 +1,18 @@
-// Heltec V3.1 - MPU6050 на GPIO4 и GPIO5
+// Heltec V3.1 - Оптимизированный вывод MPU6050
 #include <Wire.h>
 #include "SH1106Wire.h"
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 
-// === ДИСПЛЕЙ (не трогаем) ===
-#define DISPLAY_SDA     17    // SDA дисплея
-#define DISPLAY_SCL     18    // SCL дисплея
+// === ПИНЫ ===
+#define DISPLAY_SDA     17    // Дисплей SDA
+#define DISPLAY_SCL     18    // Дисплей SCL
 #define OLED_RST        21    // Reset дисплея
 #define OLED_VEXT       10    // Питание дисплея (LOW = ON)
 #define OLED_ADDR       0x3C  // Адрес дисплея
 
-// === MPU6050 (подключаем СЮДА) ===
-// ВАРИАНТ 1: GPIO4 и GPIO5 (рекомендую - обычно свободны)
-#define MPU_SDA         4     // ← ПОДКЛЮЧИ СЮДА
-#define MPU_SCL         5     // ← ПОДКЛЮЧИ СЮДА
-
-// ВАРИАНТ 2: GPIO33 и GPIO34 (если 4,5 заняты)
-// #define MPU_SDA         33    // ← Альтернатива
-// #define MPU_SCL         34    // ← Альтернатива
-
-// ВАРИАНТ 3: GPIO12 и GPIO13 (если другие заняты)
-// #define MPU_SDA         12    // ← Альтернатива
-// #define MPU_SCL         13    // ← Альтернатива
-
+#define MPU_SDA         4     // MPU6050 SDA
+#define MPU_SCL         5     // MPU6050 SCL
 #define MPU_ADDR        0x68  // Адрес MPU6050
 
 // Объекты
@@ -31,135 +20,121 @@ SH1106Wire display(OLED_ADDR, DISPLAY_SDA, DISPLAY_SCL);
 Adafruit_MPU6050 mpu;
 
 // Данные
-float accelX, accelY, accelZ;
-float gyroX, gyroY, gyroZ;
-float temp;
+float accelX = 0, accelY = 0, accelZ = 0;
+float gyroX = 0, gyroY = 0, gyroZ = 0;
+float temp = 0;
 bool mpuInitialized = false;
+unsigned long lastDisplayUpdate = 0;
+unsigned long lastDataRead = 0;
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
   
   Serial.println();
-  Serial.println("==========================================");
-  Serial.println("Heltec V3.1 - MPU6050 Test");
-  Serial.print("Display: SDA="); Serial.print(DISPLAY_SDA);
-  Serial.print(" SCL="); Serial.println(DISPLAY_SCL);
-  Serial.print("MPU6050: SDA="); Serial.print(MPU_SDA);
-  Serial.print(" SCL="); Serial.println(MPU_SCL);
-  Serial.println("==========================================");
+  Serial.println("Heltec V3.1 - Optimized MPU6050");
+  Serial.println("Display: GPIO17,18 | MPU: GPIO4,5");
   
-  // === 1. ВКЛЮЧАЕМ ДИСПЛЕЙ ===
-  Serial.println("[1] Powering display...");
+  // === ВКЛЮЧАЕМ ПИТАНИЕ ДИСПЛЕЯ (ВАЖНО!) ===
   pinMode(OLED_VEXT, OUTPUT);
-  digitalWrite(OLED_VEXT, LOW);
+  digitalWrite(OLED_VEXT, LOW);  // ВКЛЮЧЕНО!
   delay(100);
   
-  // === 2. ИНИЦИАЛИЗАЦИЯ ДИСПЛЕЯ ===
-  Serial.println("[2] Initializing display...");
+  // === СБРОС ДИСПЛЕЯ ===
   pinMode(OLED_RST, OUTPUT);
   digitalWrite(OLED_RST, LOW);
   delay(50);
   digitalWrite(OLED_RST, HIGH);
   delay(50);
   
+  // === ИНИЦИАЛИЗАЦИЯ ДИСПЛЕЯ ===
   Wire.begin(DISPLAY_SDA, DISPLAY_SCL);
   display.init();
   display.flipScreenVertically();
   display.setFont(ArialMT_Plain_10);
   display.clear();
   
-  display.drawString(0, 0, "Heltec V3.1");
-  display.drawString(0, 12, "Init MPU6050...");
-  display.drawString(0, 24, "SDA:" + String(MPU_SDA));
-  display.drawString(0, 36, "SCL:" + String(MPU_SCL));
+  // Показываем стартовый экран
+  display.setTextAlignment(TEXT_ALIGN_CENTER);
+  display.drawString(64, 0, "HELTEC V3.1");
+  display.drawString(64, 15, "Initializing...");
+  display.drawString(64, 30, "MPU6050 Test");
   display.display();
   
-  Serial.println("Display: OK");
+  Serial.println("Display initialized");
   
-  // === 3. ИНИЦИАЛИЗАЦИЯ MPU6050 ===
-  Serial.println("[3] Initializing MPU6050...");
+  // === ИНИЦИАЛИЗАЦИЯ MPU6050 ===
+  delay(1000);
   
-  // Временная смена пинов для MPU6050
+  // Временный переход на пины MPU6050
   Wire.end();
-  delay(50);
   Wire.begin(MPU_SDA, MPU_SCL);
-  Wire.setClock(100000); // Медленнее для надежности
+  Wire.setClock(100000); // 100kHz
   
-  // Пробуем найти MPU6050
-  if (!mpu.begin(MPU_ADDR)) {
-    Serial.println("MPU6050 not found!");
-    
-    // Возвращаем пины для дисплея
-    Wire.end();
-    Wire.begin(DISPLAY_SDA, DISPLAY_SCL);
-    
-    display.clear();
-    display.drawString(0, 0, "MPU6050 ERROR!");
-    display.drawString(0, 12, "Check connection:");
-    display.drawString(0, 24, "SDA->GPIO" + String(MPU_SDA));
-    display.drawString(0, 36, "SCL->GPIO" + String(MPU_SCL));
-    display.drawString(0, 48, "VCC->3.3V, GND->GND");
-    display.display();
-    
-    mpuInitialized = false;
-  } else {
-    // Настройка MPU6050
+  if (mpu.begin(MPU_ADDR)) {
     mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
     mpu.setGyroRange(MPU6050_RANGE_500_DEG);
     mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
     
     Serial.println("MPU6050: OK");
     mpuInitialized = true;
-    
-    // Возвращаем пины для дисплея
-    Wire.end();
-    Wire.begin(DISPLAY_SDA, DISPLAY_SCL);
+  } else {
+    Serial.println("MPU6050: Not found");
+    mpuInitialized = false;
   }
   
-  // === 4. СТАРТОВЫЙ ЭКРАН ===
+  // Возвращаем пины для дисплея
+  Wire.end();
+  Wire.begin(DISPLAY_SDA, DISPLAY_SCL);
+  
+  // === ФИНАЛЬНЫЙ СТАРТОВЫЙ ЭКРАН ===
   display.clear();
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  
   if (mpuInitialized) {
-    display.drawString(0, 0, "SYSTEM READY!");
-    display.drawString(0, 12, "Display: GPIO17,18");
-    display.drawString(0, 24, "MPU6050: OK");
-    display.drawString(0, 36, "Pins: " + String(MPU_SDA) + "," + String(MPU_SCL));
-    display.drawString(0, 48, "Reading data...");
+    display.drawString(0, 0, "MPU6050 READY");
+    display.drawString(0, 15, "Accel: 8G");
+    display.drawString(0, 30, "Gyro: 500°/s");
+    display.drawString(0, 45, "Display: 128x64");
   } else {
-    display.drawString(0, 0, "MPU6050 MISSING");
-    display.drawString(0, 12, "Display working");
-    display.drawString(0, 24, "Connect MPU6050:");
-    display.drawString(0, 36, "SDA->GPIO" + String(MPU_SDA));
-    display.drawString(0, 48, "SCL->GPIO" + String(MPU_SCL));
+    display.drawString(0, 0, "MPU6050 ERROR");
+    display.drawString(0, 15, "Check GPIO4,5");
+    display.drawString(0, 30, "SDA:4, SCL:5");
+    display.drawString(0, 45, "VCC:3.3V, GND:GND");
   }
   display.display();
   
   delay(2000);
   
+  // Очищаем для основного режима
+  display.clear();
+  display.display();
+  
   if (mpuInitialized) {
-    Serial.println("==========================================");
     Serial.println("AX\tAY\tAZ\tGX\tGY\tGZ\tTemp");
-    Serial.println("==========================================");
   }
 }
 
-void readMPU6050() {
+void readSensorData() {
   if (!mpuInitialized) return;
   
-  // Переключаемся на пины MPU6050
+  unsigned long currentTime = millis();
+  if (currentTime - lastDataRead < 50) return; // Читаем каждые 50ms
+  
+  // Переключаемся на MPU6050
   Wire.end();
   Wire.begin(MPU_SDA, MPU_SCL);
   
   sensors_event_t a, g, temp_event;
   if (mpu.getEvent(&a, &g, &temp_event)) {
-    // Фильтрация
-    accelX = (accelX * 0.7) + (a.acceleration.x * 0.3);
-    accelY = (accelY * 0.7) + (a.acceleration.y * 0.3);
-    accelZ = (accelZ * 0.7) + (a.acceleration.z * 0.3);
+    // Фильтрация (сглаживание)
+    accelX = (accelX * 0.8) + (a.acceleration.x * 0.2);
+    accelY = (accelY * 0.8) + (a.acceleration.y * 0.2);
+    accelZ = (accelZ * 0.8) + (a.acceleration.z * 0.2);
     
-    gyroX = (gyroX * 0.7) + (g.gyro.x * 0.3);
-    gyroY = (gyroY * 0.7) + (g.gyro.y * 0.3);
-    gyroZ = (gyroZ * 0.7) + (g.gyro.z * 0.3);
+    gyroX = (gyroX * 0.8) + (g.gyro.x * 0.2);
+    gyroY = (gyroY * 0.8) + (g.gyro.y * 0.2);
+    gyroZ = (gyroZ * 0.8) + (g.gyro.z * 0.2);
     
     temp = temp_event.temperature;
     
@@ -172,46 +147,82 @@ void readMPU6050() {
   // Возвращаемся к дисплею
   Wire.end();
   Wire.begin(DISPLAY_SDA, DISPLAY_SCL);
+  
+  lastDataRead = currentTime;
 }
 
 void updateDisplay() {
+  unsigned long currentTime = millis();
+  if (currentTime - lastDisplayUpdate < 200) return; // Обновляем каждые 200ms
+  
   display.clear();
   
   if (mpuInitialized) {
-    // Акселерометр
-    display.drawString(0, 0, "ACCEL (m/s²):");
-    display.drawString(0, 12, "X:" + String(accelX, 1));
-    display.drawString(45, 12, "Y:" + String(accelY, 1));
-    display.drawString(90, 12, "Z:" + String(accelZ, 1));
+    // === ВЕРХНЯЯ СТРОКА: АКСЕЛЕРОМЕТР ===
+    display.drawString(0, 0, "ACCEL:");
     
-    // Гироскоп
-    display.drawString(0, 24, "GYRO (°/s):");
-    display.drawString(0, 36, "X:" + String(gyroX, 1));
-    display.drawString(45, 36, "Y:" + String(gyroY, 1));
-    display.drawString(90, 36, "Z:" + String(gyroZ, 1));
+    // X
+    display.drawString(0, 12, "X");
+    int barX = map(constrain(accelX, -10, 10), -10, 10, 0, 40);
+    display.fillRect(15, 12, barX, 8);
+    display.drawString(60, 12, String(accelX, 1));
     
-    // Температура
-    display.drawString(0, 48, "T:" + String(temp, 1) + "°C");
+    // Y
+    display.drawString(0, 24, "Y");
+    int barY = map(constrain(accelY, -10, 10), -10, 10, 0, 40);
+    display.fillRect(15, 24, barY, 8);
+    display.drawString(60, 24, String(accelY, 1));
+    
+    // Z
+    display.drawString(0, 36, "Z");
+    int barZ = map(constrain(accelZ, -10, 10), -10, 10, 0, 40);
+    display.fillRect(15, 36, barZ, 8);
+    display.drawString(60, 36, String(accelZ, 1));
+    
+    // === НИЖНЯЯ СТРОКА: ГИРОСКОП И ТЕМП ===
+    display.drawString(85, 0, "GYRO:");
+    display.drawString(85, 12, "X:" + String(gyroX, 1));
+    display.drawString(85, 24, "Y:" + String(gyroY, 1));
+    display.drawString(85, 36, "Z:" + String(gyroZ, 1));
+    
+    // Температура и индикатор
+    display.drawString(0, 48, "T:" + String(temp, 1) + "C");
+    
+    // Индикатор активности
+    static bool blink = false;
+    blink = !blink;
+    display.fillCircle(120, 56, 3, blink ? WHITE : BLACK);
+    display.drawCircle(120, 56, 3);
+    
   } else {
-    // Только дисплей
+    // Режим без датчика
     static int counter = 0;
-    display.drawString(0, 0, "Heltec V3.1");
-    display.drawString(0, 12, "No MPU6050");
-    display.drawString(0, 24, "Connect to:");
-    display.drawString(0, 36, "GPIO" + String(MPU_SDA) + " (SDA)");
-    display.drawString(0, 48, "GPIO" + String(MPU_SCL) + " (SCL)");
+    display.drawString(0, 0, "NO MPU6050");
+    display.drawString(0, 15, "Connect to:");
+    display.drawString(0, 30, "GPIO4 (SDA)");
+    display.drawString(0, 45, "GPIO5 (SCL)");
     
+    // Мигающий индикатор
     if (counter % 10 == 0) {
-      Serial.println("Waiting for MPU6050 on GPIO" + String(MPU_SDA) + "," + String(MPU_SCL));
+      display.fillCircle(120, 56, 3);
     }
     counter++;
   }
   
   display.display();
+  lastDisplayUpdate = currentTime;
 }
 
 void loop() {
-  readMPU6050();
+  readSensorData();
   updateDisplay();
-  delay(mpuInitialized ? 100 : 1000);
+  
+  // Проверяем питание дисплея каждые 30 секунд
+  static unsigned long lastPowerCheck = 0;
+  if (millis() - lastPowerCheck > 30000) {
+    digitalWrite(OLED_VEXT, LOW); // Подтверждаем что питание включено
+    lastPowerCheck = millis();
+  }
+  
+  delay(10); // Короткая задержка для стабильности
 }
