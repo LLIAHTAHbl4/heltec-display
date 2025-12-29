@@ -6,14 +6,14 @@
 // Попробуй по очереди каждую секцию:
 
 // === ВАРИАНТ 1 (самый вероятный для Heltec S3) ===
-#define SDA_PIN 17
-#define SCL_PIN 18
-#define RST_PIN 21
+// #define SDA_PIN 17
+// #define SCL_PIN 18
+// #define RST_PIN 21
 
 // === ВАРИАНТ 2 ===
-// #define SDA_PIN 15
-// #define SCL_PIN 4
-// #define RST_PIN 16
+#define SDA_PIN 15
+#define SCL_PIN 4
+#define RST_PIN 16
 
 // === ВАРИАНТ 3 (стандартные I2C пины) ===
 // #define SDA_PIN 8
