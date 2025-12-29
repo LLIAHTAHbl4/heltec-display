@@ -8,10 +8,15 @@ jobs:
     
     steps:
     - uses: actions/checkout@v3
-    - uses: arduino/setup-arduino-cli@v1
+    
+    - name: Setup Arduino CLI
+      uses: arduino/setup-arduino-cli@v1
     
     - name: Add Heltec boards
       run: |
+        # Создаем конфиг если его нет
+        arduino-cli config init || true
+        # Добавляем репозиторий Heltec
         arduino-cli config add board_manager.additional_urls https://heltec.org/package_heltec_esp32_index.json
         arduino-cli core update-index
         arduino-cli core install heltec:esp32
@@ -21,3 +26,9 @@ jobs:
     
     - name: Compile
       run: arduino-cli compile --fqbn heltec:esp32:wifi_kit_32 .
+    
+    - name: Upload firmware
+      uses: actions/upload-artifact@v3
+      with:
+        name: firmware
+        path: ./*.bin
