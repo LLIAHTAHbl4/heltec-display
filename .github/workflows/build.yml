@@ -1,4 +1,4 @@
-name: Build Heltec S3 V3.1
+name: Build Heltec V3.1 Official
 
 on: [push, workflow_dispatch]
 
@@ -18,32 +18,17 @@ jobs:
         arduino-cli core update-index
         arduino-cli core install esp32:esp32
     
-    - name: Install libraries
+    - name: Install SH1106 library
       run: |
-        arduino-cli lib install "Adafruit GFX Library"
-        arduino-cli lib install "Adafruit SSD1306"
+        arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"
+        # Эта библиотека поддерживает SH1106
     
     - name: Compile for ESP32-S3
       run: |
-        # Создаем папку для выходных файлов
-        mkdir -p firmware_output
-        # Компилируем с указанием папки
-        arduino-cli compile --fqbn esp32:esp32:esp32s3 --output-dir firmware_output --export-binaries .
-    
-    - name: List files for debug
-      run: |
-        echo "=== Current directory ==="
-        ls -la
-        echo "=== Firmware output ==="
-        ls -la firmware_output/ || echo "No firmware_output folder"
-        echo "=== Build folder ==="
-        ls -la build/ || echo "No build folder"
+        arduino-cli compile --fqbn esp32:esp32:esp32s3 --export-binaries .
     
     - name: Upload firmware
       uses: actions/upload-artifact@v4
       with:
-        name: heltec-firmware
-        path: |
-          firmware_output/*.bin
-          firmware_output/*.elf
-        if-no-files-found: error
+        name: firmware
+        path: ./*.bin
