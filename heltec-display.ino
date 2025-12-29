@@ -1,4 +1,4 @@
-// Heltec V3.1 - Оптимизированный вывод MPU6050
+// Heltec V3.1 - Оптимизированный вывод MPU6050 (исправленная версия)
 #include <Wire.h>
 #include "SH1106Wire.h"
 #include <Adafruit_MPU6050.h>
@@ -35,9 +35,9 @@ void setup() {
   Serial.println("Heltec V3.1 - Optimized MPU6050");
   Serial.println("Display: GPIO17,18 | MPU: GPIO4,5");
   
-  // === ВКЛЮЧАЕМ ПИТАНИЕ ДИСПЛЕЯ (ВАЖНО!) ===
+  // === ВКЛЮЧАЕМ ПИТАНИЕ ДИСПЛЕЯ ===
   pinMode(OLED_VEXT, OUTPUT);
-  digitalWrite(OLED_VEXT, LOW);  // ВКЛЮЧЕНО!
+  digitalWrite(OLED_VEXT, LOW);
   delay(100);
   
   // === СБРОС ДИСПЛЕЯ ===
@@ -54,7 +54,7 @@ void setup() {
   display.setFont(ArialMT_Plain_10);
   display.clear();
   
-  // Показываем стартовый экран
+  // Стартовый экран
   display.setTextAlignment(TEXT_ALIGN_CENTER);
   display.drawString(64, 0, "HELTEC V3.1");
   display.drawString(64, 15, "Initializing...");
@@ -66,10 +66,10 @@ void setup() {
   // === ИНИЦИАЛИЗАЦИЯ MPU6050 ===
   delay(1000);
   
-  // Временный переход на пины MPU6050
+  // Переключаемся на пины MPU6050
   Wire.end();
   Wire.begin(MPU_SDA, MPU_SCL);
-  Wire.setClock(100000); // 100kHz
+  Wire.setClock(100000);
   
   if (mpu.begin(MPU_ADDR)) {
     mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
@@ -87,7 +87,7 @@ void setup() {
   Wire.end();
   Wire.begin(DISPLAY_SDA, DISPLAY_SCL);
   
-  // === ФИНАЛЬНЫЙ СТАРТОВЫЙ ЭКРАН ===
+  // Финальный стартовый экран
   display.clear();
   display.setTextAlignment(TEXT_ALIGN_LEFT);
   
@@ -119,7 +119,7 @@ void readSensorData() {
   if (!mpuInitialized) return;
   
   unsigned long currentTime = millis();
-  if (currentTime - lastDataRead < 50) return; // Читаем каждые 50ms
+  if (currentTime - lastDataRead < 50) return;
   
   // Переключаемся на MPU6050
   Wire.end();
@@ -127,7 +127,7 @@ void readSensorData() {
   
   sensors_event_t a, g, temp_event;
   if (mpu.getEvent(&a, &g, &temp_event)) {
-    // Фильтрация (сглаживание)
+    // Фильтрация
     accelX = (accelX * 0.8) + (a.acceleration.x * 0.2);
     accelY = (accelY * 0.8) + (a.acceleration.y * 0.2);
     accelZ = (accelZ * 0.8) + (a.acceleration.z * 0.2);
@@ -153,46 +153,49 @@ void readSensorData() {
 
 void updateDisplay() {
   unsigned long currentTime = millis();
-  if (currentTime - lastDisplayUpdate < 200) return; // Обновляем каждые 200ms
+  if (currentTime - lastDisplayUpdate < 200) return;
   
   display.clear();
   
   if (mpuInitialized) {
-    // === ВЕРХНЯЯ СТРОКА: АКСЕЛЕРОМЕТР ===
-    display.drawString(0, 0, "ACCEL:");
+    // === АКСЕЛЕРОМЕТР (слева) ===
+    display.drawString(0, 0, "ACCEL (m/s²):");
     
     // X
-    display.drawString(0, 12, "X");
+    display.drawString(0, 12, "X:");
     int barX = map(constrain(accelX, -10, 10), -10, 10, 0, 40);
-    display.fillRect(15, 12, barX, 8);
-    display.drawString(60, 12, String(accelX, 1));
+    display.fillRect(20, 12, barX, 8);
+    display.drawString(70, 12, String(accelX, 1));
     
     // Y
-    display.drawString(0, 24, "Y");
+    display.drawString(0, 24, "Y:");
     int barY = map(constrain(accelY, -10, 10), -10, 10, 0, 40);
-    display.fillRect(15, 24, barY, 8);
-    display.drawString(60, 24, String(accelY, 1));
+    display.fillRect(20, 24, barY, 8);
+    display.drawString(70, 24, String(accelY, 1));
     
     // Z
-    display.drawString(0, 36, "Z");
+    display.drawString(0, 36, "Z:");
     int barZ = map(constrain(accelZ, -10, 10), -10, 10, 0, 40);
-    display.fillRect(15, 36, barZ, 8);
-    display.drawString(60, 36, String(accelZ, 1));
+    display.fillRect(20, 36, barZ, 8);
+    display.drawString(70, 36, String(accelZ, 1));
     
-    // === НИЖНЯЯ СТРОКА: ГИРОСКОП И ТЕМП ===
-    display.drawString(85, 0, "GYRO:");
+    // === ГИРОСКОП (справа) ===
+    display.drawString(85, 0, "GYRO (°/s):");
     display.drawString(85, 12, "X:" + String(gyroX, 1));
     display.drawString(85, 24, "Y:" + String(gyroY, 1));
     display.drawString(85, 36, "Z:" + String(gyroZ, 1));
     
-    // Температура и индикатор
-    display.drawString(0, 48, "T:" + String(temp, 1) + "C");
+    // === ТЕМПЕРАТУРА И ИНДИКАТОР ===
+    display.drawString(0, 48, "Temp: " + String(temp, 1) + "C");
     
-    // Индикатор активности
+    // Индикатор активности (мигающий квадратик)
     static bool blink = false;
     blink = !blink;
-    display.fillCircle(120, 56, 3, blink ? WHITE : BLACK);
-    display.drawCircle(120, 56, 3);
+    if (blink) {
+      display.fillRect(120, 53, 6, 6);
+    } else {
+      display.drawRect(120, 53, 6, 6);
+    }
     
   } else {
     // Режим без датчика
@@ -204,7 +207,9 @@ void updateDisplay() {
     
     // Мигающий индикатор
     if (counter % 10 == 0) {
-      display.fillCircle(120, 56, 3);
+      display.fillRect(120, 53, 6, 6);
+    } else {
+      display.drawRect(120, 53, 6, 6);
     }
     counter++;
   }
@@ -220,9 +225,9 @@ void loop() {
   // Проверяем питание дисплея каждые 30 секунд
   static unsigned long lastPowerCheck = 0;
   if (millis() - lastPowerCheck > 30000) {
-    digitalWrite(OLED_VEXT, LOW); // Подтверждаем что питание включено
+    digitalWrite(OLED_VEXT, LOW);
     lastPowerCheck = millis();
   }
   
-  delay(10); // Короткая задержка для стабильности
+  delay(10);
 }
