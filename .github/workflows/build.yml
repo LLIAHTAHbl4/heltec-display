@@ -1,8 +1,8 @@
-name: Build Heltec V3.1 Project with Sensors
-on: [push, workflow_dispatch]
+name: Build Heltec V3.1 Project
+on: [push, workflow_dispatch, pull_request]
 
 env:
-  SKETCH_NAME: "heltec_sensors_project.ino"
+  SKETCH_NAME: "heltec_sensors.ino"
   
 jobs:
   build:
@@ -11,82 +11,48 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        
+      
     - name: Setup Arduino CLI
       uses: arduino/setup-arduino-cli@v1
       
     - name: Install ESP32 core (S3)
       run: |
-        arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
-        arduino-cli core install esp32:esp32@2.0.14 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+        arduino-cli config init
+        arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+        arduino-cli core update-index
+        arduino-cli core install esp32:esp32@2.0.14
         
     - name: Install required libraries
       run: |
-        # Основные библиотеки
-        arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"  # SH1106Wire.h
-        arduino-cli lib install "Adafruit AHTX0"  # Для AHT10/AC5600
-        arduino-cli lib install "Adafruit SHT31 Library"  # Для SHT31
-        arduino-cli lib install "Adafruit Unified Sensor"  # Зависимость
-        arduino-cli lib install "Wire"  # I2C библиотека
+        arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"
+        arduino-cli lib install "Adafruit AHTX0"
+        arduino-cli lib install "Adafruit SHT31 Library"
         
-        # Дополнительные полезные библиотеки
-        arduino-cli lib install "Adafruit BusIO"
-        
-    - name: Rename sketch to match expected name
+    - name: Verify sketch exists
       run: |
-        # Копируем главный файл в корень с правильным именем
-        if [ -f "main.ino" ]; then
-          cp main.ino ${{ env.SKETCH_NAME }}
-        elif [ -f "*.ino" ]; then
-          cp *.ino ${{ env.SKETCH_NAME }}
+        if [ ! -f "${{ env.SKETCH_NAME }}" ]; then
+          echo "❌ Файл скетча ${{ env.SKETCH_NAME }} не найден!"
+          echo "Создайте файл ${{ env.SKETCH_NAME }} с вашим кодом"
+          exit 1
         fi
+        echo "✅ Файл скетча найден"
         
-    - name: List files for debugging
-      run: ls -la
-        
-    - name: Verify board configuration
-      run: |
-        arduino-cli board listall | grep -i esp32
-        arduino-cli core list
-        arduino-cli lib list
-        
-    - name: Compile for Heltec WiFi Kit 32 V3.1 (ESP32-S3)
+    - name: Compile for ESP32-S3
       run: |
         arduino-cli compile \
           --fqbn esp32:esp32:esp32s3 \
           --build-property "build.partitions=default" \
           --build-property "upload.maximum_size=4194304" \
-          --build-property "upload.maximum_data_size=131072" \
           --build-property "upload.speed=921600" \
-          --build-property "compiler.c.extra_flags=-Wno-error=deprecated-declarations" \
           --build-property "compiler.cpp.extra_flags=-Wno-error=deprecated-declarations" \
           --warnings all \
           ${{ env.SKETCH_NAME }}
           
-    - name: Archive firmware
+    - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: firmware-heltec-v3.1
+        name: firmware
         path: |
-          build/*.bin
-          build/*.elf
-        retention-days: 7
-        
-    - name: Create release package
-      run: |
-        mkdir -p release
-        cp build/esp32.esp32.esp32s3/*.bin release/ || true
-        cp build/esp32.esp32.esp32s3/*.elf release/ || true
-        echo "Build date: $(date)" > release/build_info.txt
-        echo "Commit: $GITHUB_SHA" >> release/build_info.txt
-        echo "Board: Heltec WiFi Kit 32 V3.1 (ESP32-S3)" >> release/build_info.txt
-        echo "Sensors: AHT10 + SHT31" >> release/build_info.txt
-        
-    - name: Upload release artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-package
-        path: release/
+          build/esp32.esp32.esp32s3/*.bin
+          build/esp32.esp32.esp32s3/*.elf
         retention-days: 30
