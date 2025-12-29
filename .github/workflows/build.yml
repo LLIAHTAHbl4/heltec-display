@@ -1,4 +1,4 @@
-name: Build Heltec
+name: Build Heltec ESP32-S3
 
 on: [push]
 
@@ -12,7 +12,7 @@ jobs:
     - name: Setup Arduino CLI
       uses: arduino/setup-arduino-cli@v1
     
-    - name: Install ESP32 core
+    - name: Install ESP32-S3 core
       run: |
         arduino-cli config init || true
         arduino-cli core update-index
@@ -21,14 +21,13 @@ jobs:
     - name: Install display library
       run: arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"
     
-    - name: Compile
+    - name: Compile for ESP32-S3
       run: |
-        # Компилируем и указываем папку для выходных файлов
         mkdir -p firmware
-        arduino-cli compile --fqbn esp32:esp32:esp32 --output-dir firmware .
-    
-    - name: List files (для проверки)
-      run: ls -la firmware/ || ls -la
+        # Пробуем разные варианты для ESP32-S3
+        arduino-cli compile --fqbn esp32:esp32:esp32s3 --output-dir firmware . || \
+        arduino-cli compile --fqbn esp32:esp32:esp32s3devkitm --output-dir firmware . || \
+        arduino-cli compile --fqbn esp32:esp32:adafruit_metro_esp32s3 --output-dir firmware .
     
     - name: Upload firmware
       uses: actions/upload-artifact@v4
