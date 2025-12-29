@@ -25,10 +25,25 @@ jobs:
     
     - name: Compile for ESP32-S3
       run: |
-        arduino-cli compile --fqbn esp32:esp32:esp32s3 --export-binaries .
+        # Создаем папку для выходных файлов
+        mkdir -p firmware_output
+        # Компилируем с указанием папки
+        arduino-cli compile --fqbn esp32:esp32:esp32s3 --output-dir firmware_output --export-binaries .
+    
+    - name: List files for debug
+      run: |
+        echo "=== Current directory ==="
+        ls -la
+        echo "=== Firmware output ==="
+        ls -la firmware_output/ || echo "No firmware_output folder"
+        echo "=== Build folder ==="
+        ls -la build/ || echo "No build folder"
     
     - name: Upload firmware
       uses: actions/upload-artifact@v4
       with:
-        name: firmware
-        path: ./*.bin
+        name: heltec-firmware
+        path: |
+          firmware_output/*.bin
+          firmware_output/*.elf
+        if-no-files-found: error
