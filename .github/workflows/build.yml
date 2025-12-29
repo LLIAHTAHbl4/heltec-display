@@ -12,20 +12,18 @@ jobs:
     - name: Setup Arduino CLI
       uses: arduino/setup-arduino-cli@v1
     
-    - name: Add Heltec boards
+    - name: Install ESP32 core (без Heltec)
       run: |
-        # Создаем конфиг если его нет
+        # Используем стандартный ESP32 вместо Heltec
         arduino-cli config init || true
-        # Добавляем репозиторий Heltec
-        arduino-cli config add board_manager.additional_urls https://heltec.org/package_heltec_esp32_index.json
         arduino-cli core update-index
-        arduino-cli core install heltec:esp32
+        arduino-cli core install esp32:esp32
     
     - name: Install display library
       run: arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"
     
-    - name: Compile
-      run: arduino-cli compile --fqbn heltec:esp32:wifi_kit_32 .
+    - name: Compile for generic ESP32
+      run: arduino-cli compile --fqbn esp32:esp32:esp32 .
     
     - name: Upload firmware
       uses: actions/upload-artifact@v4
