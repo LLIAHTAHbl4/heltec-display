@@ -2,7 +2,6 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-// Пины для Heltec S3 V3.1
 #define OLED_SDA   17
 #define OLED_SCL   18
 #define OLED_RST   16
@@ -12,112 +11,115 @@ Adafruit_SSD1306 display(128, 64, &Wire, OLED_RST);
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
-  Serial.println("=== OLED CONFIG TEST ===");
+  delay(3000); // Долгая задержка для стабилизации
   
-  // Включаем питание дисплея
+  Serial.println("=== ULTIMATE OLED TEST ===");
+  
+  // Включение питания
   pinMode(VEXT_PIN, OUTPUT);
   digitalWrite(VEXT_PIN, LOW);
-  Serial.println("Power: ON (VEXT=LOW)");
-  delay(200);
+  Serial.println("POWER: ON");
+  delay(500); // Даем время на прогрев
   
-  // Сброс дисплея
+  // Жесткий сброс
   pinMode(OLED_RST, OUTPUT);
   digitalWrite(OLED_RST, LOW);
-  delay(100);
+  delay(200);
   digitalWrite(OLED_RST, HIGH);
-  delay(100);
-  Serial.println("Reset done");
+  delay(200);
+  Serial.println("RESET: DONE");
   
-  // Инициализация I2C
+  // I2C
   Wire.begin(OLED_SDA, OLED_SCL);
   
-  // === ТЕСТ 1: Обычная инициализация ===
-  Serial.println("\n[TEST 1] Normal init...");
-  if (display.begin(SSD1306_SWITCHCAPVCC, 0x3C, false)) {
-    Serial.println("Success! Trying to display...");
-    testDisplay("TEST 1 OK");
-    delay(3000);
-  } else {
-    Serial.println("Failed");
+  // Инициализация с EXTERNALVCC (работал TEST 2)
+  if (!display.begin(SSD1306_EXTERNALVCC, 0x3C, false)) {
+    Serial.println("SSD1306 failed!");
+    return;
   }
   
-  // === ТЕСТ 2: С внутренним генератором ===
-  Serial.println("\n[TEST 2] Internal charge pump...");
-  if (display.begin(SSD1306_EXTERNALVCC, 0x3C, false)) {
-    Serial.println("Success! Trying to display...");
-    testDisplay("TEST 2 OK");
-    delay(3000);
-  } else {
-    Serial.println("Failed");
-  }
+  Serial.println("DISPLAY: INIT OK");
   
-  // === ТЕСТ 3: Адрес 0x3D ===
-  Serial.println("\n[TEST 3] Address 0x3D...");
-  if (display.begin(SSD1306_SWITCHCAPVCC, 0x3D, false)) {
-    Serial.println("Success! Trying to display...");
-    testDisplay("TEST 3 OK");
-    delay(3000);
-  } else {
-    Serial.println("Failed");
-  }
+  // === ЭКСТРЕМАЛЬНЫЕ НАСТРОЙКИ ===
   
-  // === ТЕСТ 4: С максимальной яркостью ===
-  Serial.println("\n[TEST 4] Max brightness...");
-  if (display.begin(SSD1306_SWITCHCAPVCC, 0x3C, false)) {
-    display.ssd1306_command(SSD1306_SETCONTRAST);
-    display.ssd1306_command(0xFF); // Макс контраст
-    Serial.println("Max contrast set");
-    testDisplay("TEST 4 MAX");
-    delay(3000);
-  }
+  // 1. Максимальный контраст
+  display.ssd1306_command(SSD1306_SETCONTRAST);
+  display.ssd1306_command(255); // 255 - максимум
+  Serial.println("CONTRAST: MAX (255)");
+  delay(1000);
   
-  // === ТЕСТ 5: Инверсия цветов ===
-  Serial.println("\n[TEST 5] Inverted colors...");
-  display.invertDisplay(true);
-  testDisplay("INVERTED");
-  delay(2000);
-  display.invertDisplay(false);
+  // 2. Включаем дисплей
+  display.ssd1306_command(SSD1306_DISPLAYON);
+  Serial.println("DISPLAY: ON");
+  delay(1000);
   
-  // === ТЕСТ 6: Разные размеры текста ===
-  Serial.println("\n[TEST 6] Different text sizes...");
+  // 3. ЗАЛИВКА ВСЕГО ЭКРАНА БЕЛЫМ
+  Serial.println("FILL: WHITE SCREEN");
   display.clearDisplay();
-  display.setTextSize(1);
-  display.setCursor(0,0);
-  display.println("Size 1");
-  display.setTextSize(2);
-  display.println("Size 2");
-  display.setTextSize(3);
-  display.println("Size 3");
+  display.fillRect(0, 0, 128, 64, SSD1306_WHITE);
   display.display();
   delay(3000);
   
-  Serial.println("\n=== ALL TESTS COMPLETE ===");
-  Serial.println("If display shows anything, note which test worked!");
-}
-
-void testDisplay(String text) {
+  // 4. ЧЕРНЫЙ экран
+  Serial.println("FILL: BLACK SCREEN");
   display.clearDisplay();
-  display.setTextSize(2);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.println(text);
-  display.println("HELLO!");
   display.display();
-  Serial.println("Display updated: " + text);
+  delay(2000);
+  
+  // 5. ШАХМАТНАЯ ДОСКА (максимально контрастно)
+  Serial.println("PATTERN: CHESS BOARD");
+  display.clearDisplay();
+  for (int y = 0; y < 64; y += 16) {
+    for (int x = 0; x < 128; x += 16) {
+      if ((x + y) % 32 == 0) {
+        display.fillRect(x, y, 16, 16, SSD1306_WHITE);
+      }
+    }
+  }
+  display.display();
+  delay(3000);
+  
+  // 6. ГОРИЗОНТАЛЬНЫЕ полосы
+  Serial.println("PATTERN: HORIZONTAL LINES");
+  display.clearDisplay();
+  for (int y = 0; y < 64; y += 4) {
+    display.drawFastHLine(0, y, 128, SSD1306_WHITE);
+  }
+  display.display();
+  delay(3000);
+  
+  // 7. ВЕРТИКАЛЬНЫЕ полосы
+  Serial.println("PATTERN: VERTICAL LINES");
+  display.clearDisplay();
+  for (int x = 0; x < 128; x += 4) {
+    display.drawFastVLine(x, 0, 64, SSD1306_WHITE);
+  }
+  display.display();
+  delay(3000);
+  
+  Serial.println("=== TEST COMPLETE ===");
+  Serial.println("Look at screen CAREFULLY!");
+  Serial.println("Even faint glow means it works");
 }
 
 void loop() {
-  // Простая анимация
-  static int counter = 0;
+  // Мигание всей площадью
   display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0, 0);
-  display.print("Counter:");
-  display.println(counter++);
+  display.fillRect(0, 0, 128, 64, SSD1306_WHITE);
   display.display();
-  
-  Serial.print("Counter: ");
-  Serial.println(counter);
+  Serial.println("SCREEN: WHITE");
   delay(1000);
+  
+  display.clearDisplay();
+  display.display();
+  Serial.println("SCREEN: BLACK");
+  delay(1000);
+  
+  // Бегущая точка
+  static int x = 0;
+  display.clearDisplay();
+  display.drawPixel(x, 32, SSD1306_WHITE);
+  display.display();
+  x = (x + 1) % 128;
+  delay(50);
 }
