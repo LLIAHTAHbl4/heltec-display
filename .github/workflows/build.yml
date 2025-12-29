@@ -1,4 +1,4 @@
-name: Build Heltec V3.1 Official
+name: Build Heltec V3.1 with MPU6050
 
 on: [push, workflow_dispatch]
 
@@ -18,21 +18,20 @@ jobs:
         arduino-cli core update-index
         arduino-cli core install esp32:esp32
     
-    - name: Install SH1106 library
+    - name: Install required libraries
       run: |
         arduino-cli lib install "ESP8266 and ESP32 OLED driver for SSD1306 displays"
+        arduino-cli lib install "Adafruit MPU6050"
+        arduino-cli lib install "Adafruit Unified Sensor"
+        arduino-cli lib install "Adafruit BusIO"
     
     - name: Compile for ESP32-S3
       run: |
-        # Явно указываем имя скетча
-        mkdir -p build_output
-        arduino-cli compile --fqbn esp32:esp32:esp32s3 --output-dir build_output --export-binaries .
+        mkdir -p firmware_output
+        arduino-cli compile --fqbn esp32:esp32:esp32s3 --output-dir firmware_output --export-binaries .
     
-    - name: Find and copy binaries
+    - name: Copy binaries to artifacts
       run: |
-        echo "=== Searching for binaries ==="
-        find . -name "*.bin" -type f
-        echo "=== Copying to artifacts folder ==="
         mkdir -p artifacts
         find . -name "*.bin" -type f -exec cp {} artifacts/ \;
         ls -la artifacts/
@@ -40,6 +39,6 @@ jobs:
     - name: Upload firmware
       uses: actions/upload-artifact@v4
       with:
-        name: heltec-firmware
+        name: heltec-mpu6050-firmware
         path: artifacts/*.bin
         if-no-files-found: error
