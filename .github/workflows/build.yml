@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Setup Arduino CLI
       uses: arduino/setup-arduino-cli@v1
@@ -28,7 +28,7 @@ jobs:
       run: arduino-cli compile --fqbn heltec:esp32:wifi_kit_32 .
     
     - name: Upload firmware
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: firmware
         path: ./*.bin
