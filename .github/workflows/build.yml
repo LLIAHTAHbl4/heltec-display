@@ -1,6 +1,6 @@
-name: Build Heltec ESP32-S3
+name: Build Heltec S3 V3.1
 
-on: [push]
+on: [push, workflow_dispatch]
 
 jobs:
   build:
@@ -14,23 +14,21 @@ jobs:
     
     - name: Install ESP32 core
       run: |
-        arduino-cli config init || true
+        arduino-cli config init
         arduino-cli core update-index
         arduino-cli core install esp32:esp32
     
-    - name: Install required libraries
+    - name: Install libraries
       run: |
         arduino-cli lib install "Adafruit GFX Library"
-        arduino-cli lib install "Adafruit SH110X"
-        arduino-cli lib install "Adafruit BusIO"
+        arduino-cli lib install "Adafruit SSD1306"
     
     - name: Compile for ESP32-S3
       run: |
-        mkdir -p firmware
-        arduino-cli compile --fqbn esp32:esp32:esp32s3 --output-dir firmware .
+        arduino-cli compile --fqbn esp32:esp32:esp32s3 --export-binaries .
     
     - name: Upload firmware
       uses: actions/upload-artifact@v4
       with:
         name: firmware
-        path: firmware/*.bin
+        path: ./*.bin
