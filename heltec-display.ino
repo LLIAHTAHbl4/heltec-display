@@ -1,60 +1,91 @@
+// ОФИЦИАЛЬНЫЙ код для Heltec WiFi Kit 32 V3.1
+// По документации: https://heltec.org/project/wifi-kit-32-v3/
+
 #include <Wire.h>
-#include "SH1106Wire.h"  // Библиотека для SH1106!
+#include "SH1106Wire.h"
 
-// Пины ПО ДОКУМЕНТАЦИИ Heltec:
-#define I2C_SDA     17
-#define I2C_SCL     18  
-#define OLED_RST    21  // По документации!
-#define OLED_VEXT   10  // По документации! Питание дисплея
+// ТОЧНЫЕ пины по документации Heltec:
+#define I2C_SDA     17    // GPIO17 - SDA
+#define I2C_SCL     18    // GPIO18 - SCL  
+#define OLED_RST    21    // GPIO21 - Reset
+#define OLED_VEXT   10    // GPIO10 - Питание дисплея (LOW = ON)
 
-SH1106Wire display(0x3C, I2C_SDA, I2C_SCL);
+// Адрес дисплея
+#define OLED_ADDR   0x3C
+
+// Создаем объект дисплея SH1106
+SH1106Wire display(OLED_ADDR, I2C_SDA, I2C_SCL);
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
-  Serial.println("=== HELTEC V3.1 OFFICIAL CODE ===");
+  while (!Serial); // Ждем Serial
   
-  // 1. ВКЛЮЧАЕМ питание дисплея через VEXT (Active LOW!)
+  Serial.println();
+  Serial.println("=================================");
+  Serial.println("HELTEC WiFi Kit 32 V3.1");
+  Serial.println("Official firmware by Heltec");
+  Serial.println("=================================");
+  
+  // ШАГ 1: Включаем питание дисплея через VEXT
+  Serial.println("[1] Powering display via VEXT...");
   pinMode(OLED_VEXT, OUTPUT);
-  digitalWrite(OLED_VEXT, LOW);  // LOW = питание ВКЛЮЧЕНО
-  Serial.println("VEXT: ON (LOW)");
+  digitalWrite(OLED_VEXT, LOW);   // LOW = питание ВКЛЮЧЕНО
   delay(100);
   
-  // 2. СБРОС дисплея
+  // ШАГ 2: Сбрасываем дисплей
+  Serial.println("[2] Resetting display...");
   pinMode(OLED_RST, OUTPUT);
   digitalWrite(OLED_RST, LOW);
   delay(50);
   digitalWrite(OLED_RST, HIGH);
   delay(50);
-  Serial.println("RST: Done");
   
-  // 3. Инициализация I2C
+  // ШАГ 3: Инициализация I2C
+  Serial.println("[3] Starting I2C...");
   Wire.begin(I2C_SDA, I2C_SCL);
   
-  // 4. Инициализация дисплея SH1106
-  Serial.println("Init SH1106...");
+  // ШАГ 4: Инициализация дисплея SH1106
+  Serial.println("[4] Initializing SH1106 display...");
   display.init();
   
-  // 5. Настройки дисплея
-  display.flipScreenVertically();  // Важно для Heltec!
+  // ШАГ 5: Настройка дисплея (важно для Heltec!)
+  display.flipScreenVertically();  // Переворачиваем для правильной ориентации
   display.setFont(ArialMT_Plain_16);
-  display.clear();
   
-  // 6. Вывод текста
+  // ШАГ 6: Очистка и вывод
+  Serial.println("[5] Drawing on display...");
+  display.clear();
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
   display.drawString(0, 0, "HELTEC V3.1");
-  display.drawString(0, 20, "OFFICIAL");
-  display.drawString(0, 40, "WORKING!");
+  display.drawString(0, 20, "WiFi Kit 32");
+  display.drawString(0, 40, "OLED WORKS!");
   display.display();
   
-  Serial.println("Display should show text!");
+  Serial.println("=================================");
+  Serial.println("Display initialization COMPLETE!");
+  Serial.println("Check the OLED screen!");
+  Serial.println("=================================");
 }
 
 void loop() {
-  // Мигание для проверки
-  display.invertDisplay();
-  delay(500);
-  display.normalDisplay();
-  delay(500);
+  // Простая анимация
+  static int counter = 0;
   
-  Serial.println("Display blinking (if working)");
+  // Обновляем только часть экрана
+  display.setColor(BLACK);
+  display.fillRect(0, 40, 128, 24);
+  display.setColor(WHITE);
+  display.setFont(ArialMT_Plain_16);
+  display.drawString(0, 40, "Count: " + String(counter));
+  display.display();
+  
+  Serial.println("Counter: " + String(counter));
+  counter++;
+  
+  // Мигание инверсией
+  display.invertDisplay();
+  delay(200);
+  display.normalDisplay();
+  
+  delay(800);
 }
