@@ -8,25 +8,25 @@
 #include <Adafruit_AHTX0.h>
 #include <Adafruit_SHT31.h>
 
-// --- Константы дисплея ---
+// Константы дисплея
 #define OLED_VEXT     10
 #define OLED_RST      21
 #define OLED_SDA      17
 #define OLED_SCL      18
 #define OLED_ADDR     0x3C
 
-// --- Константы I2C для датчиков ---
+// Константы I2C для датчиков
 #define I2C_SDA       4
 #define I2C_SCL       5
 #define AHT10_ADDR    0x38
 #define SHT31_ADDR    0x44
 
-// --- Объекты ---
+// Объекты
 SH1106Wire display(OLED_ADDR, OLED_SDA, OLED_SCL);
 Adafruit_AHTX0 aht;
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
 
-// --- Переменные ---
+// Переменные
 bool ahtFound = false;
 bool shtFound = false;
 unsigned long lastUpdate = 0;
@@ -96,15 +96,10 @@ void setup() {
   if (ahtFound) {
     display.drawString(0, yPos, "✓ AHT10: OK");
     yPos += 12;
-  } else {
-    display.drawString(0, yPos, "✗ AHT10: НЕТ");
-    yPos += 12;
   }
   
   if (shtFound) {
     display.drawString(0, yPos, "✓ SHT31: OK");
-  } else {
-    display.drawString(0, yPos, "✗ SHT31: НЕТ");
   }
   
   display.display();
@@ -138,14 +133,10 @@ void loop() {
     
     if (ahtFound && !isnan(tempAHT)) {
       Serial.printf("AHT10:  %.1f°C, %.1f%%\n", tempAHT, humidityAHT);
-    } else {
-      Serial.println("AHT10:  Нет данных");
     }
     
     if (shtFound && !isnan(tempSHT)) {
       Serial.printf("SHT31:  %.1f°C, %.1f%%\n", tempSHT, humiditySHT);
-    } else {
-      Serial.println("SHT31:  Нет данных");
     }
     
     // Вывод на дисплей
@@ -167,18 +158,8 @@ void loop() {
       display.drawString(0, yPos, "SHT31:");
       display.drawString(40, yPos, String(tempSHT, 1) + "C");
       display.drawString(80, yPos, String(humiditySHT, 1) + "%");
-      yPos += 12;
     }
     
-    if (ahtFound && shtFound && !isnan(tempAHT) && !isnan(tempSHT)) {
-      float avgTemp = (tempAHT + tempSHT) / 2;
-      float avgHum = (humidityAHT + humiditySHT) / 2;
-      display.drawString(0, yPos, "Среднее:");
-      display.drawString(50, yPos, String(avgTemp, 1) + "C");
-      display.drawString(90, yPos, String(avgHum, 1) + "%");
-    }
-    
-    display.drawString(0, 55, "Обновлено: " + String(millis()/1000) + "с");
     display.display();
   }
   
