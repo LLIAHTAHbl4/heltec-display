@@ -1,161 +1,250 @@
-// Heltec V3.1 - Стабильная версия (MPU6050 на основном I2C)
-#include <Wire.h>
-#include "SH1106Wire.h"
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
+/* 
+ *  Проект для Heltec WiFi Kit 32 V3.1 с датчиками AHT10 и SHT31
+ *  Показания выводятся на OLED-дисплей и в Serial Monitor
+ */
 
-// === ПИНЫ ===
-#define OLED_RST        21    // Reset дисплея
-#define OLED_VEXT       10    // Питание дисплея (LOW = ON)
-#define OLED_ADDR       0x3C  // Адрес дисплея
+// --- БИБЛИОТЕКИ ---
+#include "SH1106Wire.h"           // Для дисплея SH1106
+#include <Wire.h>                 // Для работы с I2C
+#include <Adafruit_AHTX0.h>       // Для AHT10/AHT20
+#include <Adafruit_SHT31.h>       // Для SHT31-D
 
-// Объекты (оба на одном I2C - пины 17,18)
-SH1106Wire display(OLED_ADDR, 17, 18); // Дисплей на пинах 17,18
-Adafruit_MPU6050 mpu;                  // MPU6050 тоже на пинах 17,18
+// --- КОНСТАНТЫ ДИСПЛЕЯ (FIXED!) ---
+#define OLED_VEXT     10          // Управление питанием дисплея (LOW = ВКЛ)
+#define OLED_RST      21          // Сброс дисплея
+#define OLED_SDA      17          // SDA дисплея - НЕ МЕНЯТЬ!
+#define OLED_SCL      18          // SCL дисплея - НЕ МЕНЯТЬ!
+#define OLED_ADDR     0x3C        // Адрес I2C дисплея
 
-// Данные
-float accelX = 0, accelY = 0, accelZ = 0;
-float gyroX = 0, gyroY = 0, gyroZ = 0;
-float temp = 0;
-bool displayOn = true;
+// --- КОНСТАНТЫ I2C ДЛЯ ДАТЧИКОВ ---
+#define I2C_SDA       4           // SDA для датчиков (GPIO4)
+#define I2C_SCL       5           // SCL для датчиков (GPIO5)
+
+// --- АДРЕСА I2C ДАТЧИКОВ ---
+#define AHT10_ADDR    0x38        // Адрес AHT10 (AC5600)
+#define SHT31_ADDR    0x44        // Адрес SHT31-D (может быть 0x45)
+
+// --- ОБЪЕКТЫ ---
+SH1106Wire display(OLED_ADDR, OLED_SDA, OLED_SCL);  // Объект дисплея
+Adafruit_AHTX0 aht;                                 // Объект AHT10
+Adafruit_SHT31 sht31 = Adafruit_SHT31();            // Объект SHT31
+
+// --- ПЕРЕМЕННЫЕ ---
+bool ahtFound = false;   // Флаг обнаружения AHT10
+bool shtFound = false;   // Флаг обнаружения SHT31
+unsigned long lastUpdate = 0;  // Для интервала обновления
+const int UPDATE_INTERVAL = 2000;  // Обновление каждые 2 сек
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
-  
-  Serial.println();
-  Serial.println("=== HELTEC V3.1 - SIMPLE ===");
-  Serial.println("Display + MPU6050 on same I2C");
-  
-  // === ВКЛЮЧАЕМ ПИТАНИЕ ДИСПЛЕЯ ===
-  pinMode(OLED_VEXT, OUTPUT);
-  digitalWrite(OLED_VEXT, LOW); // ВКЛЮЧЕНО
-  Serial.println("Display power: ON");
   delay(100);
   
-  // === СБРОС ДИСПЛЕЯ ===
+  // --- ИНИЦИАЛИЗАЦИЯ ДИСПЛЕЯ (ОБЯЗАТЕЛЬНАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ!) ---
+  pinMode(OLED_VEXT, OUTPUT);
+  digitalWrite(OLED_VEXT, LOW);    // ВКЛЮЧАЕМ ПИТАНИЕ ДИСПЛЕЯ!
+  delay(100);
+  
   pinMode(OLED_RST, OUTPUT);
   digitalWrite(OLED_RST, LOW);
   delay(50);
   digitalWrite(OLED_RST, HIGH);
   delay(50);
-  Serial.println("Display reset: DONE");
   
-  // === ИНИЦИАЛИЗАЦИЯ I2C (один раз!) ===
-  Wire.begin(17, 18); // Фиксированные пины
-  Wire.setClock(100000); // 100kHz
+  // Инициализация Wire для дисплея (пины 17,18)
+  Wire.begin(OLED_SDA, OLED_SCL);
   
-  // === ИНИЦИАЛИЗАЦИЯ ДИСПЛЕЯ ===
-  Serial.print("Initializing display... ");
-  if (display.init()) {
-    Serial.println("OK");
-    display.flipScreenVertically();
-    display.setFont(ArialMT_Plain_16);
-    display.clear();
-    
-    // Показываем стартовый экран
-    display.setTextAlignment(TEXT_ALIGN_CENTER);
-    display.drawString(64, 0, "HELTEC V3.1");
-    display.drawString(64, 20, "Starting...");
-    display.display();
-  } else {
-    Serial.println("FAILED");
-  }
+  // Инициализация дисплея
+  display.init();
+  display.flipScreenVertically();  // КРИТИЧЕСКИ ВАЖНО!
   
-  delay(1000);
-  
-  // === ИНИЦИАЛИЗАЦИЯ MPU6050 ===
-  Serial.print("Initializing MPU6050... ");
-  if (mpu.begin(0x68)) { // Адрес 0x68
-    mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-    mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-    mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-    Serial.println("OK");
-    
-    // Успешная инициализация
-    display.clear();
-    display.drawString(64, 0, "SYSTEM READY");
-    display.drawString(64, 20, "MPU6050: OK");
-    display.drawString(64, 40, "Reading data...");
-    display.display();
-  } else {
-    Serial.println("FAILED");
-    
-    display.clear();
-    display.drawString(64, 0, "MPU6050 ERROR");
-    display.drawString(64, 20, "Check connection");
-    display.drawString(64, 40, "Addr: 0x68");
-    display.display();
-  }
-  
-  delay(2000);
-  
-  // Очищаем для основного режима
+  // Отображаем начальный экран
   display.clear();
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.setFont(ArialMT_Plain_16);
+  display.drawString(0, 0, "Heltec V3.1");
   display.setFont(ArialMT_Plain_10);
+  display.drawString(0, 20, "Инициализация...");
   display.display();
   
-  Serial.println("AX\tAY\tAZ\tGX\tGY\tGZ\tTemp");
+  Serial.println("\n\n=== Heltec WiFi Kit 32 V3.1 ===");
+  Serial.println("Инициализация системы...");
+  
+  // --- ИНИЦИАЛИЗАЦИЯ I2C ДЛЯ ДАТЧИКОВ (пины 4,5) ---
+  Wire1.begin(I2C_SDA, I2C_SCL);  // Используем второй I2C порт
+  
+  // --- ПОИСК И ИНИЦИАЛИЗАЦИЯ AHT10 (AC5600) ---
+  Serial.print("Поиск AHT10 (адрес 0x38)... ");
+  
+  if (aht.begin(&Wire1, AHT10_ADDR)) {
+    ahtFound = true;
+    Serial.println("НАЙДЕН");
+  } else {
+    Serial.println("НЕ НАЙДЕН!");
+    display.drawString(0, 35, "AHT10: НЕТ");
+  }
+  
+  // --- ПОИСК И ИНИЦИАЛИЗАЦИЯ SHT31-D ---
+  Serial.print("Поиск SHT31 (адрес 0x44)... ");
+  
+  if (sht31.begin(SHT31_ADDR, &Wire1)) {
+    shtFound = true;
+    Serial.println("НАЙДЕН");
+  } else {
+    // Пробуем альтернативный адрес
+    if (sht31.begin(0x45, &Wire1)) {
+      shtFound = true;
+      Serial.println("НАЙДЕН по адресу 0x45");
+    } else {
+      Serial.println("НЕ НАЙДЕН!");
+      display.drawString(0, 45, "SHT31: НЕТ");
+    }
+  }
+  
+  // --- ЗАВЕРШЕНИЕ НАСТРОЙКИ ---
+  if (ahtFound || shtFound) {
+    Serial.println("Датчики готовы к работе!");
+    
+    // Обновляем экран
+    display.clear();
+    display.setFont(ArialMT_Plain_16);
+    display.drawString(0, 0, "Датчики:");
+    display.setFont(ArialMT_Plain_10);
+    
+    int yPos = 20;
+    if (ahtFound) {
+      display.drawString(0, yPos, "✓ AHT10: OK");
+      yPos += 12;
+    }
+    if (shtFound) {
+      display.drawString(0, yPos, "✓ SHT31: OK");
+      yPos += 12;
+    }
+    
+    display.drawString(0, yPos, "Чтение...");
+    display.display();
+  } else {
+    Serial.println("ОШИБКА: Датчики не найдены!");
+    display.clear();
+    display.setFont(ArialMT_Plain_16);
+    display.drawString(0, 0, "ОШИБКА!");
+    display.setFont(ArialMT_Plain_10);
+    display.drawString(0, 20, "Датчики не найдены");
+    display.drawString(0, 35, "Проверьте подключение");
+    display.display();
+    
+    // Бесконечный цикл при ошибке
+    while (true) {
+      delay(1000);
+    }
+  }
+  
+  delay(2000);  // Пауза перед началом измерений
 }
 
 void loop() {
-  // === ПОДДЕРЖИВАЕМ ПИТАНИЕ ДИСПЛЕЯ ===
-  static unsigned long lastPowerCheck = 0;
-  if (millis() - lastPowerCheck > 10000) { // Каждые 10 секунд
-    digitalWrite(OLED_VEXT, LOW);
-    lastPowerCheck = millis();
-    Serial.println("Display power refreshed");
-  }
-  
-  // === ЧТЕНИЕ ДАННЫХ С MPU6050 ===
-  sensors_event_t a, g, temp_event;
-  if (mpu.getEvent(&a, &g, &temp_event)) {
-    // Сглаживание
-    accelX = (accelX * 0.7) + (a.acceleration.x * 0.3);
-    accelY = (accelY * 0.7) + (a.acceleration.y * 0.3);
-    accelZ = (accelZ * 0.7) + (a.acceleration.z * 0.3);
+  // Обновляем данные каждые UPDATE_INTERVAL мс
+  if (millis() - lastUpdate >= UPDATE_INTERVAL) {
+    lastUpdate = millis();
     
-    gyroX = (gyroX * 0.7) + (g.gyro.x * 0.3);
-    gyroY = (gyroY * 0.7) + (g.gyro.y * 0.3);
-    gyroZ = (gyroZ * 0.7) + (g.gyro.z * 0.3);
+    // Переменные для данных
+    float tempAHT = NAN, humidityAHT = NAN;
+    float tempSHT = NAN, humiditySHT = NAN;
     
-    temp = temp_event.temperature;
-    
-    // Serial вывод
-    Serial.printf("%.2f\t%.2f\t%.2f\t", accelX, accelY, accelZ);
-    Serial.printf("%.2f\t%.2f\t%.2f\t", gyroX, gyroY, gyroZ);
-    Serial.printf("%.1fC\n", temp);
-    
-    // === ОБНОВЛЕНИЕ ДИСПЛЕЯ ===
-    display.clear();
-    
-    // Акселерометр (верх)
-    display.drawString(0, 0, "ACCEL:");
-    display.drawString(0, 12, "X:" + String(accelX, 1));
-    display.drawString(40, 12, "Y:" + String(accelY, 1));
-    display.drawString(80, 12, "Z:" + String(accelZ, 1));
-    
-    // Гироскоп (середина)
-    display.drawString(0, 24, "GYRO:");
-    display.drawString(0, 36, "X:" + String(gyroX, 1));
-    display.drawString(40, 36, "Y:" + String(gyroY, 1));
-    display.drawString(80, 36, "Z:" + String(gyroZ, 1));
-    
-    // Температура (низ)
-    display.drawString(0, 48, "Temp: " + String(temp, 1) + "C");
-    
-    // Мигающий индикатор
-    static bool blink = false;
-    blink = !blink;
-    if (blink) {
-      display.fillRect(120, 56, 4, 4);
+    // --- ЧТЕНИЕ ДАННЫХ С AHT10 ---
+    if (ahtFound) {
+      sensors_event_t humidity, temp;
+      if (aht.getEvent(&humidity, &temp)) {
+        tempAHT = temp.temperature;
+        humidityAHT = humidity.relative_humidity;
+      }
     }
     
+    // --- ЧТЕНИЕ ДАННЫХ С SHT31 ---
+    if (shtFound) {
+      tempSHT = sht31.readTemperature();
+      humiditySHT = sht31.readHumidity();
+    }
+    
+    // --- ВЫВОД В SERIAL MONITOR ---
+    Serial.println("\n=== ПОКАЗАНИЯ ДАТЧИКОВ ===");
+    
+    if (ahtFound && !isnan(tempAHT)) {
+      Serial.printf("AHT10:  Температура: %.1f°C, Влажность: %.1f%%\n", 
+                    tempAHT, humidityAHT);
+    } else {
+      Serial.println("AHT10:  Нет данных");
+    }
+    
+    if (shtFound && !isnan(tempSHT)) {
+      Serial.printf("SHT31:  Температура: %.1f°C, Влажность: %.1f%%\n", 
+                    tempSHT, humiditySHT);
+    } else {
+      Serial.println("SHT31:  Нет данных");
+    }
+    
+    // --- ВЫВОД НА ДИСПЛЕЙ ---
+    display.clear();
+    display.setFont(ArialMT_Plain_16);
+    display.drawString(0, 0, "Датчики:");
+    
+    display.setFont(ArialMT_Plain_10);
+    int yPos = 20;
+    
+    // Отображение данных AHT10
+    if (ahtFound && !isnan(tempAHT)) {
+      display.drawString(0, yPos, "AHT10:");
+      display.drawString(40, yPos, String(tempAHT, 1) + "C");
+      display.drawString(80, yPos, String(humidityAHT, 1) + "%");
+      yPos += 12;
+    }
+    
+    // Отображение данных SHT31
+    if (shtFound && !isnan(tempSHT)) {
+      display.drawString(0, yPos, "SHT31:");
+      display.drawString(40, yPos, String(tempSHT, 1) + "C");
+      display.drawString(80, yPos, String(humiditySHT, 1) + "%");
+      yPos += 12;
+    }
+    
+    // Средние значения, если оба датчика работают
+    if (ahtFound && shtFound && !isnan(tempAHT) && !isnan(tempSHT)) {
+      float avgTemp = (tempAHT + tempSHT) / 2;
+      float avgHum = (humidityAHT + humiditySHT) / 2;
+      
+      display.drawString(0, yPos, "Среднее:");
+      display.drawString(50, yPos, String(avgTemp, 1) + "C");
+      display.drawString(90, yPos, String(avgHum, 1) + "%");
+    }
+    
+    // Время обновления
+    display.setFont(ArialMT_Plain_10);
+    display.drawString(0, 55, "Обновлено: " + String(millis()/1000) + "с");
+    
     display.display();
-  } else {
-    Serial.println("MPU6050 read error");
   }
   
-  delay(100); // 10 FPS
+  // Короткая пауза
+  delay(100);
+}
+
+// --- ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ---
+void scanI2C() {
+  // Функция для сканирования I2C шины (можете вызвать из setup для диагностики)
+  Serial.println("\nСканирование I2C шины...");
+  
+  byte error, address;
+  int nDevices = 0;
+  
+  for(address = 1; address < 127; address++) {
+    Wire1.beginTransmission(address);
+    error = Wire1.endTransmission();
+    
+    if (error == 0) {
+      Serial.printf("Устройство найден по адресу 0x%02X\n", address);
+      nDevices++;
+    }
+  }
+  
+  if (nDevices == 0) {
+    Serial.println("Устройства I2C не найдены!");
+  }
 }
