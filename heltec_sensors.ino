@@ -1,7 +1,7 @@
 /*
  * Heltec WiFi Kit 32 V3.1
  * AHT10 + SHT31 Sensors
- *///
+ *////
 
 #include "SH1106Wire.h"
 #include <Wire.h>
